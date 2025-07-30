@@ -1188,14 +1188,14 @@ def main():
             <div style="text-align: center;">
                 <p style="color: #8b92a5; margin-bottom: 20px;">Precisa de ajuda ou tem sugestões?</p>
                 <div style="display: flex; justify-content: space-around; margin: 20px 0;">
-                    <a href="mailto:suporte@ebookgenerator.com" style="color: #667eea; text-decoration: none;">
+                    <a href="solarcubix@gmail.com" style="color: #667eea; text-decoration: none;">
                         📧 Email
                     </a>
-                    <a href="https://github.com/seu-usuario/ebook-generator" style="color: #667eea; text-decoration: none;">
+                    <a href="https://github.com/Filip3Owl/auto-ebook-generator" style="color: #667eea; text-decoration: none;">
                         🐱 GitHub
                     </a>
-                    <a href="https://discord.gg/seu-servidor" style="color: #667eea; text-decoration: none;">
-                        💬 Discord
+                    <a href="https://www.linkedin.com/in/filiperangelambrosio/" style="color: #667eea; text-decoration: none;">
+                        💬 Linkedin
                     </a>
                 </div>
             </div>
