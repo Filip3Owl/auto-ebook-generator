@@ -1,14 +1,34 @@
 import streamlit as st
 from langchain.chains import LLMChain
-from langchain.llms import OpenAI  # Modificado para usar a importação direta
+from langchain.llms import OpenAI
+import sys
+from pathlib import Path
+
+# Adiciona o diretório raiz ao path para resolver imports
+sys.path.append(str(Path(__file__).parent))
+
+# Importações relativas corrigidas
 from core.prompts import EBOOK_PROMPTS
-from core.chains import create_ebook_chain
-from utils.config import load_config
+from agents.outline_chain import create_outline_chain
+from agents.writer_chain import create_writing_chain
 from utils.file_io import save_ebook
+from utils.config import load_config
 
 # Configuração inicial
 load_config()
 st.set_page_config(page_title="📘 Ebook Generator Pro", layout="wide")
+
+def create_ebook_chain(llm):
+    """Cria a cadeia completa de geração de ebooks"""
+    outline_chain = create_outline_chain(llm)
+    writing_chain = create_writing_chain(llm)
+    
+    def combined_chain(topic, style, length):
+        outline = outline_chain.run(topic=topic, style=style, length=length)
+        ebook = writing_chain.run(outline=outline, topic=topic, style=style)
+        return ebook
+    
+    return combined_chain
 
 def main():
     st.title("📘 Ebook Generator Pro")
@@ -16,7 +36,9 @@ def main():
     
     with st.sidebar:
         st.header("Configurações")
-        api_key = st.text_input("OpenAI API Key", type="password", value=st.session_state.get("api_key", ""))
+        api_key = st.text_input("OpenAI API Key", 
+                              type="password", 
+                              value=st.session_state.get("api_key", ""))
         st.session_state.api_key = api_key or None
         
         if api_key:
@@ -26,10 +48,13 @@ def main():
         st.subheader("Opções do Ebook")
         ebook_style = st.selectbox("Estilo", ["Profissional", "Descontraído", "Técnico"])
         ebook_length = st.slider("Tamanho (páginas)", 3, 20, 5)
+        output_format = st.selectbox("Formato de Saída", ["PDF", "Markdown"])
     
     # Formulário principal
     with st.form("ebook_form"):
-        ebook_topic = st.text_area("Tópico Principal do Ebook", placeholder="Ex: Inteligência Artificial para Iniciantes")
+        ebook_topic = st.text_area("Tópico Principal do Ebook", 
+                                 placeholder="Ex: Inteligência Artificial para Iniciantes",
+                                 height=100)
         submit_button = st.form_submit_button("Gerar Ebook")
     
     if submit_button and ebook_topic:
@@ -46,31 +71,37 @@ def main():
                     max_tokens=2000
                 )
                 
-                # Criação da cadeia LangChain
-                ebook_chain = create_ebook_chain(llm)
-                
-                # Execução
-                ebook_content = ebook_chain.run(
+                # Criação e execução da cadeia
+                ebook_content = create_ebook_chain(llm)(
                     topic=ebook_topic,
                     style=ebook_style,
                     length=ebook_length
                 )
                 
-                # Exibição e download
+                # Exibição do resultado
                 st.success("Ebook gerado com sucesso!")
-                st.markdown(ebook_content)
+                with st.expander("Visualizar Conteúdo"):
+                    st.markdown(ebook_content)
                 
-                # Salvar ebook
-                ebook_path = save_ebook(ebook_content, ebook_topic)
+                # Salvamento e download
+                ebook_path = save_ebook(
+                    content=ebook_content,
+                    title=ebook_topic,
+                    format=output_format.lower()
+                )
+                
                 with open(ebook_path, "rb") as f:
+                    btn_label = "Baixar Ebook (PDF)" if output_format == "PDF" else "Baixar Markdown"
                     st.download_button(
-                        "Baixar Ebook (PDF)",
+                        label=btn_label,
                         data=f,
-                        file_name=f"{ebook_topic[:50]}.pdf"
+                        file_name=f"ebook_{ebook_topic[:50]}.{output_format.lower()}",
+                        mime="application/pdf" if output_format == "PDF" else "text/markdown"
                     )
                     
             except Exception as e:
                 st.error(f"Erro ao gerar ebook: {str(e)}")
+                st.exception(e)  # Mostra o traceback completo para debug
 
 if __name__ == "__main__":
     main()
