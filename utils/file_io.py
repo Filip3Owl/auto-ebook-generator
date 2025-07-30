@@ -1,6 +1,8 @@
 import os
 from datetime import datetime
 import re
+from io import BytesIO
+from base64 import b64encode
 
 def save_ebook(content, title, format="markdown"):
     """Salva o ebook no formato especificado com tratamento de erros"""
@@ -72,30 +74,48 @@ def save_as_html(content, title, timestamp):
     return filename
 
 def save_as_pdf(content, title, timestamp):
-    """Salva como arquivo PDF (requer fpdf2)"""
+    """Salva como arquivo PDF com melhor formatação"""
     try:
         from fpdf import FPDF
         
         filename = f"output/ebook_{title}_{timestamp}.pdf"
         
+        # Criar PDF com encoding UTF-8
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_font("Arial", size=12)
+        pdf.set_auto_page_break(auto=True, margin=15)
         
-        # Quebrar conteúdo em linhas para evitar overflow
+        # Adicionar fonte com suporte a UTF-8
+        pdf.add_font('DejaVu', '', 'DejaVuSansCondensed.ttf', uni=True)
+        pdf.set_font('DejaVu', '', 12)
+        
+        # Processar conteúdo
         lines = content.split('\n')
         for line in lines:
             if line.strip():
-                # Remover markdown básico
-                clean_line = line.replace('#', '').replace('*', '').replace('_', '')
-                pdf.multi_cell(0, 10, txt=clean_line.encode('latin-1', 'replace').decode('latin-1'))
-                pdf.ln()
+                # Processar diferentes níveis de cabeçalho
+                if line.startswith('###'):
+                    pdf.set_font('DejaVu', 'B', 12)
+                    pdf.cell(0, 10, txt=line[4:].strip(), ln=1)
+                    pdf.set_font('DejaVu', '', 12)
+                elif line.startswith('##'):
+                    pdf.set_font('DejaVu', 'B', 14)
+                    pdf.cell(0, 10, txt=line[3:].strip(), ln=1)
+                    pdf.set_font('DejaVu', '', 12)
+                elif line.startswith('#'):
+                    pdf.set_font('DejaVu', 'B', 16)
+                    pdf.cell(0, 10, txt=line[1:].strip(), ln=1)
+                    pdf.set_font('DejaVu', '', 12)
+                else:
+                    # Processar texto normal
+                    pdf.multi_cell(0, 8, txt=line.encode('utf-8').decode('latin-1', 'replace'))
+                pdf.ln(5)
         
         pdf.output(filename)
         return filename
         
     except ImportError:
-        print("fpdf2 não instalado. Salvando como markdown.")
+        print("fpdf2 não instalado. Instale com: pip install fpdf2")
         return save_as_markdown(content, title, timestamp)
     except Exception as e:
         print(f"Erro ao criar PDF: {e}. Salvando como markdown.")
@@ -146,3 +166,19 @@ def get_output_files():
             })
     
     return sorted(files, key=lambda x: x["modified"], reverse=True)
+
+def get_file_preview(filepath):
+    """Obtém uma pré-visualização do arquivo"""
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
+            return content[:500] + "..." if len(content) > 500 else content
+    except:
+        return "Não foi possível ler o conteúdo do arquivo."
+
+def get_file_download_link(filepath):
+    """Gera um link de download para o arquivo"""
+    with open(filepath, "rb") as f:
+        bytes = f.read()
+        b64 = b64encode(bytes).decode()
+        return f"data:application/octet-stream;base64,{b64}"
