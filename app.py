@@ -1,6 +1,6 @@
 import streamlit as st
 from langchain.chains import LLMChain
-from langchain_community.llms import OpenAI
+from langchain.llms import OpenAI  # Modificado para usar a importação direta
 from core.prompts import EBOOK_PROMPTS
 from core.chains import create_ebook_chain
 from utils.config import load_config
