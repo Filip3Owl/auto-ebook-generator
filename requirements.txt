@@ -1,11 +1,26 @@
+# Core dependencies
 streamlit>=1.28.0
 langchain>=0.0.340
 langchain-community>=0.0.14
 openai>=1.3.0
 python-dotenv>=1.0.0
-fpdf2>=2.7.4
 tiktoken>=0.5.1
+
+# PDF generation (REQUIRED for the new PDF feature)
+reportlab>=4.0.0
+
+# Markdown processing
 markdown>=3.8.2
+
+# Optional PDF alternatives (you can keep these as backups)
+fpdf2>=2.7.4
 pdfkit>=1.0.0
+
+# EPUB support (for future implementation)
 ebooklib>=0.19
-bs4>=0.0.2
+
+# HTML parsing (utility)
+beautifulsoup4>=4.12.0
+
+# Additional utilities
+Pillow>=10.0.0  # For image processing in PDFs

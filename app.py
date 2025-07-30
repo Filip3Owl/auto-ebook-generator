@@ -8,6 +8,14 @@ import json
 from datetime import datetime
 import traceback
 import time
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas
+from reportlab.lib.colors import HexColor
+import markdown
+import io
 
 # Configura paths para imports
 sys.path.append(str(Path(__file__).parent))
@@ -81,16 +89,53 @@ def apply_dark_theme():
         .feature-card {
             background: linear-gradient(135deg, #667eea15, #764ba215);
             border-radius: 12px;
-            padding: 20px;
+            padding: 25px;
             margin: 15px 0;
             border: 1px solid #667eea40;
             transition: all 0.3s ease;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
         
         .feature-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
             border-color: #667eea80;
+        }
+        
+        .feature-card h4 {
+            color: #667eea;
+            font-size: 1.1em;
+            font-weight: 700;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .feature-card ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1;
+        }
+        
+        .feature-card li {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 8px 12px;
+            margin: 6px 0;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+            color: #e2e8f0;
+            font-size: 0.9em;
+            transition: all 0.2s ease;
+        }
+        
+        .feature-card li:hover {
+            background: rgba(102, 126, 234, 0.1);
+            transform: translateX(5px);
         }
         
         /* Botões personalizados */
@@ -291,8 +336,157 @@ def apply_dark_theme():
         ::-webkit-scrollbar-thumb:hover {
             background: linear-gradient(135deg, #5a6fd8, #6b42a0);
         }
+        
+        /* Fix para responsividade */
+        @media (max-width: 768px) {
+            .feature-card {
+                min-height: auto;
+                padding: 20px;
+            }
+            
+            .main-header {
+                font-size: 2.5em;
+            }
+        }
     </style>
     """, unsafe_allow_html=True)
+
+def create_pdf_content(content, title):
+    """
+    Cria um PDF a partir do conteúdo markdown
+    """
+    try:
+        # Criar um buffer de bytes para o PDF
+        buffer = io.BytesIO()
+        
+        # Configurar o documento PDF
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=18
+        )
+        
+        # Definir estilos
+        styles = getSampleStyleSheet()
+        
+        # Estilo personalizado para título
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30,
+            textColor=HexColor('#667eea'),
+            alignment=1  # Centro
+        )
+        
+        # Estilo para capítulos
+        chapter_style = ParagraphStyle(
+            'CustomChapter',
+            parent=styles['Heading2'],
+            fontSize=16,
+            spaceBefore=20,
+            spaceAfter=12,
+            textColor=HexColor('#764ba2')
+        )
+        
+        # Estilo para seções
+        section_style = ParagraphStyle(
+            'CustomSection',
+            parent=styles['Heading3'],
+            fontSize=14,
+            spaceBefore=15,
+            spaceAfter=8,
+            textColor=HexColor('#667eea')
+        )
+        
+        # Estilo para texto normal
+        normal_style = ParagraphStyle(
+            'CustomNormal',
+            parent=styles['Normal'],
+            fontSize=11,
+            spaceAfter=8,
+            textColor=HexColor('#333333'),
+            alignment=0  # Justificado
+        )
+        
+        # Lista para armazenar elementos do PDF
+        story = []
+        
+        # Processar o conteúdo markdown linha por linha
+        lines = content.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            
+            if not line:
+                story.append(Spacer(1, 6))
+                continue
+            
+            # Títulos principais (# )
+            if line.startswith('# ') and not line.startswith('## '):
+                text = line[2:].strip()
+                if 'Capítulo' in text:
+                    story.append(PageBreak())
+                story.append(Paragraph(text, chapter_style))
+                story.append(Spacer(1, 12))
+            
+            # Subtítulos (## )
+            elif line.startswith('## '):
+                text = line[3:].strip()
+                story.append(Paragraph(text, section_style))
+                story.append(Spacer(1, 8))
+            
+            # Sub-subtítulos (### )
+            elif line.startswith('### '):
+                text = line[4:].strip()
+                subsection_style = ParagraphStyle(
+                    'CustomSubsection',
+                    parent=styles['Heading4'],
+                    fontSize=12,
+                    spaceBefore=10,
+                    spaceAfter=6,
+                    textColor=HexColor('#555555')
+                )
+                story.append(Paragraph(text, subsection_style))
+                story.append(Spacer(1, 6))
+            
+            # Linhas horizontais
+            elif line.startswith('---'):
+                story.append(Spacer(1, 20))
+                # Adicionar uma linha visual
+                from reportlab.platypus import Table
+                line_table = Table([['']]*1, colWidths=[7*inch])
+                line_table.setStyle([
+                    ('LINEBELOW', (0,0), (-1,-1), 1, HexColor('#667eea')),
+                ])
+                story.append(line_table)
+                story.append(Spacer(1, 20))
+            
+            # Texto normal
+            elif line and not line.startswith('*') and not line.startswith('©'):
+                # Processar formatação básica
+                text = line.replace('**', '<b>').replace('**', '</b>')
+                text = text.replace('*', '<i>').replace('*', '</i>')
+                
+                # Remover caracteres markdown não suportados
+                text = text.replace('`', '"')
+                
+                story.append(Paragraph(text, normal_style))
+                story.append(Spacer(1, 4))
+        
+        # Gerar o PDF
+        doc.build(story)
+        
+        # Retornar os bytes do PDF
+        buffer.seek(0)
+        return buffer.getvalue()
+        
+    except Exception as e:
+        st.error(f"Erro ao gerar PDF: {str(e)}")
+        return None
 
 def create_header():
     """Cria o cabeçalho principal"""
@@ -391,7 +585,7 @@ def create_sidebar():
             output_format = st.radio(
                 "Escolha o formato:",
                 ["📄 PDF", "📝 Markdown", "🌐 HTML", "📊 EPUB"],
-                index=1,  # Padrão para Markdown
+                index=0,  # Padrão para PDF
                 horizontal=False
             )
             
@@ -727,19 +921,23 @@ def create_example_section():
                 <li>Marketing Digital para PMEs</li>
                 <li>Gestão de Equipes Remotas</li>
                 <li>Estratégias de Vendas B2B</li>
-                <li>Planejamento Financeiro</li>
+                <li>Planejamento Financeiro Empresarial</li>
+                <li>Inovação e Criatividade nos Negócios</li>
+                <li>Liderança e Motivação de Times</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown("""
         <div class="feature-card">
-            <h4>🛠️ Tecnologia</h4>
+            <h4>🛠️ Tecnologia & Programação</h4>
             <ul>
-                <li>Python para Iniciantes</li>
-                <li>Desenvolvimento Web Básico</li>
+                <li>Python para Iniciantes Completos</li>
+                <li>Desenvolvimento Web com React</li>
                 <li>Inteligência Artificial Prática</li>
-                <li>Segurança Digital</li>
+                <li>Segurança Digital e Privacidade</li>
+                <li>Blockchain e Criptomoedas</li>
+                <li>Data Science para Negócios</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -749,22 +947,26 @@ def create_example_section():
         <div class="feature-card">
             <h4>💡 Desenvolvimento Pessoal</h4>
             <ul>
-                <li>Gestão do Tempo</li>
-                <li>Comunicação Eficaz</li>
-                <li>Liderança Pessoal</li>
-                <li>Hábitos Saudáveis</li>
+                <li>Gestão do Tempo e Produtividade</li>
+                <li>Comunicação Eficaz e Assertiva</li>
+                <li>Liderança Pessoal e Profissional</li>
+                <li>Hábitos Saudáveis e Mindfulness</li>
+                <li>Inteligência Emocional Aplicada</li>
+                <li>Planejamento de Carreira</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown("""
         <div class="feature-card">
-            <h4>🎓 Educação</h4>
+            <h4>🎓 Educação & Conhecimento</h4>
             <ul>
-                <li>História do Brasil</li>
-                <li>Matemática Básica</li>
-                <li>Ciências Naturais</li>
-                <li>Literatura Brasileira</li>
+                <li>História do Brasil Contemporâneo</li>
+                <li>Matemática Básica e Aplicada</li>
+                <li>Ciências Naturais Explicadas</li>
+                <li>Literatura Brasileira Moderna</li>
+                <li>Filosofia para o Dia a Dia</li>
+                <li>Geografia e Meio Ambiente</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -778,12 +980,12 @@ def create_tips_section():
     """, unsafe_allow_html=True)
     
     tips = [
-        ("🎯", "Seja Específico", "Temas focados geram conteúdo mais útil"),
-        ("👥", "Defina o Público", "Conhecer o leitor melhora a abordagem"),
-        ("📊", "Escolha o Nível", "Iniciante, intermediário ou avançado"),
-        ("💼", "Use Exemplos", "Solicite casos práticos e reais"),
-        ("🔄", "Teste Configurações", "Experimente diferentes estilos"),
-        ("📱", "Pense na Aplicação", "Como o leitor usará o conteúdo")
+        ("🎯", "Seja Específico", "Temas focados geram conteúdo mais útil e direcionado"),
+        ("👥", "Defina o Público", "Conhecer o leitor melhora drasticamente a abordagem"),
+        ("📊", "Escolha o Nível", "Ajuste entre iniciante, intermediário ou avançado"),
+        ("💼", "Use Exemplos", "Solicite casos práticos e situações reais"),
+        ("🔄", "Teste Configurações", "Experimente diferentes estilos e formatos"),
+        ("📱", "Pense na Aplicação", "Considere como o leitor usará o conteúdo")
     ]
     
     for icon, title, description in tips:
@@ -793,7 +995,7 @@ def create_tips_section():
                 <span style="font-size: 1.5em; margin-right: 15px;">{icon}</span>
                 <strong style="color: #667eea;">{title}</strong>
             </div>
-            <p style="margin: 0; color: #8b92a5;">{description}</p>
+            <p style="margin: 0; color: #8b92a5; line-height: 1.4;">{description}</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -862,64 +1064,199 @@ def display_results(ebook_content, config, form_data):
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            # Preparar arquivo para download
+            # Preparar arquivo para download baseado no formato selecionado
             try:
                 filename = f"ebook_{form_data['topic'][:30].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}"
-                file_extension = config["format"].lower().split()[1]
+                format_lower = config["format"].split()[1].lower()
                 
-                # Diferentes tipos de arquivo
-                if file_extension == "markdown":
+                # PDF
+                if format_lower == "pdf":
+                    st.info("🔄 Gerando PDF...")
+                    pdf_data = create_pdf_content(ebook_content, form_data['topic'])
+                    
+                    if pdf_data:
+                        st.download_button(
+                            label="📥 Baixar Ebook (PDF)",
+                            data=pdf_data,
+                            file_name=f"{filename}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                        st.success("✅ PDF pronto para download!")
+                    else:
+                        st.error("❌ Erro ao gerar PDF. Oferecendo download alternativo...")
+                        # Fallback para texto
+                        st.download_button(
+                            label="📝 Baixar como Texto (Fallback)",
+                            data=ebook_content.encode('utf-8'),
+                            file_name=f"{filename}.txt",
+                            mime="text/plain",
+                            use_container_width=True
+                        )
+                
+                # Markdown
+                elif format_lower == "markdown":
                     file_data = ebook_content.encode('utf-8')
-                    mime_type = "text/markdown"
-                elif file_extension == "html":
-                    html_content = f"""
-                    <!DOCTYPE html>
-                    <html lang="pt-BR">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>{form_data['topic']}</title>
-                        <style>
-                            body {{ font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; background: #f8f9fa; }}
-                            h1, h2, h3 {{ color: #333; }}
-                            h1 {{ border-bottom: 3px solid #667eea; padding-bottom: 10px; }}
-                            h2 {{ border-bottom: 1px solid #ddd; padding-bottom: 5px; color: #667eea; }}
-                            h3 {{ color: #764ba2; }}
-                            .highlight {{ background: #f0f8ff; padding: 15px; border-left: 4px solid #667eea; margin: 20px 0; }}
-                            code {{ background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }}
-                            blockquote {{ background: #f9f9f9; border-left: 4px solid #ddd; margin: 0; padding: 10px 20px; }}
-                            .content {{ background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-                        </style>
-                    </head>
-                    <body>
-                        <div class="content">
-                            {ebook_content.replace('# ', '<h1>').replace('## ', '<h2>').replace('### ', '<h3>').replace('\n', '<br>')}
-                        </div>
-                    </body>
-                    </html>
-                    """
+                    st.download_button(
+                        label="📥 Baixar Ebook (Markdown)",
+                        data=file_data,
+                        file_name=f"{filename}.md",
+                        mime="text/markdown",
+                        use_container_width=True
+                    )
+                    st.success("✅ Markdown pronto para download!")
+                
+                # HTML
+                elif format_lower == "html":
+                    html_content = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{form_data['topic']}</title>
+    <style>
+        body {{ 
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8f9fa;
+            color: #333;
+        }}
+        .container {{
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+        h1 {{ 
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+            text-align: center;
+        }}
+        h2 {{ 
+            color: #764ba2;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            margin-top: 30px;
+        }}
+        h3 {{ 
+            color: #667eea;
+            margin-top: 25px;
+        }}
+        .highlight {{ 
+            background: #f0f8ff;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+            margin: 20px 0;
+            border-radius: 5px;
+        }}
+        code {{ 
+            background: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }}
+        blockquote {{ 
+            background: #f9f9f9;
+            border-left: 4px solid #ddd;
+            margin: 0;
+            padding: 10px 20px;
+            font-style: italic;
+        }}
+        .info-box {{
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            border: 1px solid #667eea40;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }}
+        hr {{
+            border: none;
+            height: 2px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            margin: 30px 0;
+        }}
+        .footer {{
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            color: #666;
+            font-size: 0.9em;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        {markdown.markdown(ebook_content)}
+        <div class="footer">
+            <p>Gerado por EBook Generator Pro - {datetime.now().strftime('%d/%m/%Y às %H:%M')}</p>
+        </div>
+    </div>
+</body>
+</html>"""
+                    
                     file_data = html_content.encode('utf-8')
-                    mime_type = "text/html"
+                    st.download_button(
+                        label="📥 Baixar Ebook (HTML)",
+                        data=file_data,
+                        file_name=f"{filename}.html",
+                        mime="text/html",
+                        use_container_width=True
+                    )
+                    st.success("✅ HTML pronto para download!")
+                
+                # EPUB (simplificado como ZIP com HTML)
+                elif format_lower == "epub":
+                    # Para EPUB real, seria necessária uma biblioteca específica
+                    # Por enquanto, oferecemos HTML como alternativa
+                    html_content = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>{form_data['topic']}</title>
+    <style>
+        body {{ font-family: serif; line-height: 1.6; margin: 0; padding: 20px; }}
+        h1, h2, h3 {{ color: #333; }}
+        h1 {{ text-align: center; border-bottom: 2px solid #333; }}
+    </style>
+</head>
+<body>
+    {markdown.markdown(ebook_content)}
+</body>
+</html>"""
+                    
+                    file_data = html_content.encode('utf-8')
+                    st.download_button(
+                        label="📥 Baixar Ebook (HTML - compatível com leitores)",
+                        data=file_data,
+                        file_name=f"{filename}_ebook.html",
+                        mime="text/html",
+                        use_container_width=True
+                    )
+                    st.info("📖 Formato EPUB simulado como HTML otimizado para leitura")
+                
                 else:
+                    # Fallback para texto
                     file_data = ebook_content.encode('utf-8')
-                    mime_type = "text/plain"
-                
-                st.download_button(
-                    label=f"📥 Baixar Ebook ({config['format']})",
-                    data=file_data,
-                    file_name=f"{filename}.{file_extension.replace('pdf', 'txt')}",  # PDF não suportado, usar TXT
-                    mime=mime_type,
-                    use_container_width=True
-                )
-                
-                st.success(f"✅ Pronto para download!")
+                    st.download_button(
+                        label="📝 Baixar Ebook (Texto)",
+                        data=file_data,
+                        file_name=f"{filename}.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
+                    st.success("✅ Texto pronto para download!")
                 
             except Exception as e:
                 st.error(f"❌ Erro ao preparar download: {str(e)}")
                 
                 # Fallback: oferecer download direto do texto
                 st.download_button(
-                    label="📝 Baixar como Texto",
+                    label="📝 Baixar como Texto (Emergência)",
                     data=ebook_content.encode('utf-8'),
                     file_name=f"ebook_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
                     mime="text/plain",
@@ -927,18 +1264,19 @@ def display_results(ebook_content, config, form_data):
                 )
         
         with col2:
-            st.info("""
-            **📋 Formatos Disponíveis:**
+            st.info(f"""
+            **📋 Formato Selecionado:**
             
-            • **Markdown**: Editável e flexível
-            • **HTML**: Para web e navegadores
-            • **Texto**: Simples e universal
+            • **{config['format']}**: Escolhido nas configurações
             
-            📊 **Qualidade:**
+            📊 **Características:**
             ✅ Estrutura profissional
             ✅ Conteúdo otimizado
             ✅ Formatação adequada
             ✅ Pronto para uso
+            
+            💡 **Dica:**
+            PDFs são ideais para impressão e leitura offline.
             """)
     
     with tab3:
@@ -1146,24 +1484,24 @@ def main():
         <div class="glass-card fade-in">
             <h3 style="color: #667eea; margin-bottom: 20px;">🎁 Recursos Inclusos</h3>
             <div class="feature-card">
-                <h4>✨ Geração Otimizada</h4>
-                <p style="color: #8b92a5;">Sistema aprimorado que evita erros de token e gera conteúdo de qualidade.</p>
+                <h4>✨ Geração com PDF Real</h4>
+                <p style="color: #8b92a5;">Sistema agora gera PDFs profissionais com formatação adequada para impressão e leitura.</p>
             </div>
             <div class="feature-card">
                 <h4>📋 Estrutura Profissional</h4>
-                <p style="color: #8b92a5;">Introdução, capítulos bem organizados, conclusão e recursos extras.</p>
+                <p style="color: #8b92a5;">Introdução, capítulos bem organizados, conclusão e recursos extras com design aprimorado.</p>
             </div>
             <div class="feature-card">
                 <h4>🖼️ Sugestões Visuais</h4>
-                <p style="color: #8b92a5;">Descrições de imagens e elementos visuais para enriquecer o conteúdo.</p>
+                <p style="color: #8b92a5;">Descrições de imagens e elementos visuais para enriquecer o conteúdo do ebook.</p>
             </div>
             <div class="feature-card">
                 <h4>📚 Exercícios Práticos</h4>
-                <p style="color: #8b92a5;">Atividades e reflexões para aumentar o engajamento dos leitores.</p>
+                <p style="color: #8b92a5;">Atividades interativas e reflexões para aumentar o engajamento dos leitores.</p>
             </div>
             <div class="feature-card">
                 <h4>📄 Múltiplos Formatos</h4>
-                <p style="color: #8b92a5;">Download em Markdown, HTML e texto para máxima compatibilidade.</p>
+                <p style="color: #8b92a5;">Download em PDF, Markdown, HTML e EPUB para máxima compatibilidade.</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1171,22 +1509,22 @@ def main():
         # Seção de melhorias
         st.markdown("""
         <div class="glass-card fade-in">
-            <h3 style="color: #667eea; margin-bottom: 20px;">⚡ Melhorias v2.1</h3>
+            <h3 style="color: #667eea; margin-bottom: 20px;">⚡ Melhorias v2.2</h3>
             <div class="feature-card">
-                <h4>🔧 Correção de Tokens</h4>
-                <p style="color: #8b92a5;">Sistema completamente reescrito para evitar erros de limite de tokens.</p>
+                <h4>📄 PDF Profissional</h4>
+                <p style="color: #8b92a5;">Agora com geração real de PDF usando ReportLab, com formatação profissional e layout otimizado.</p>
             </div>
             <div class="feature-card">
-                <h4>📊 Controle Inteligente</h4>
-                <p style="color: #8b92a5;">Geração por partes com controle automático de tamanho e qualidade.</p>
+                <h4>🎨 Interface Melhorada</h4>
+                <p style="color: #8b92a5;">Containers de exemplos redesenhados com melhor espaçamento e legibilidade.</p>
             </div>
             <div class="feature-card">
-                <h4>🚀 Performance</h4>
-                <p style="color: #8b92a5;">Mais rápido e estável, com recuperação automática de erros.</p>
+                <h4>🚀 Performance Otimizada</h4>
+                <p style="color: #8b92a5;">Sistema mais rápido e estável, com recuperação automática de erros e timeouts.</p>
             </div>
             <div class="feature-card">
-                <h4>💡 Feedback Melhorado</h4>
-                <p style="color: #8b92a5;">Mensagens de erro mais claras com sugestões práticas de solução.</p>
+                <h4>💡 Downloads Inteligentes</h4>
+                <p style="color: #8b92a5;">Sistema adapta o formato de download baseado na seleção do usuário com fallbacks.</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1203,7 +1541,10 @@ def main():
                     Última atualização: 30/07/2024
                 </div>
                 <div style="color: #8b92a5; font-size: 0.8em; margin: 10px 0;">
-                    Versão: 2.1 - Otimizada para tokens
+                    Versão: 2.2 - PDF + Interface Melhorada
+                </div>
+                <div style="color: #667eea; font-size: 0.8em; margin: 10px 0;">
+                    🔥 Novidades: PDF real + Containers otimizados
                 </div>
             </div>
         </div>
@@ -1213,11 +1554,11 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; padding: 20px 0; color: #8b92a5;">
-        <p>📚 <strong>EBook Generator Pro</strong> - Powered by OpenAI</p>
-        <p style="font-size: 0.8em;">Versão 2.1 - Otimizada | © 2024 | Feito com ❤️ para criadores</p>
-        <p style="font-size: 0.7em;">🔧 Agora com correção completa de erros de token!</p>
+        <p>📚 <strong>EBook Generator Pro</strong> - Powered by OpenAI + ReportLab</p>
+        <p style="font-size: 0.8em;">Versão 2.2 - PDF Profissional | © 2024 | Feito com ❤️ para criadores</p>
+        <p style="font-size: 0.7em;">🔧 Agora com PDF real e interface otimizada!</p>
         <p style="font-size: 0.6em; margin-top: 10px;">
-            💡 Dica: Comece com ebooks de 10-30 páginas para melhores resultados
+            💡 Dica: Experimente diferentes formatos - PDF para impressão, HTML para web
         </p>
     </div>
     """, unsafe_allow_html=True)
