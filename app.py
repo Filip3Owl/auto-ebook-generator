@@ -1,22 +1,17 @@
 import streamlit as st
-from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 import sys
 from pathlib import Path
 
-# Configura o path para importações
+# Configura paths para imports
 sys.path.append(str(Path(__file__).parent))
 
-# Importações relativas corrigidas
+# Importações locais
 from core.prompts import EBOOK_PROMPTS
 from agents.outline import create_outline_chain
 from agents.writer import create_writing_chain
 from utils.file_io import save_ebook
 from utils.config import load_config
-
-# Configuração inicial
-load_config()
-st.set_page_config(page_title="📘 Ebook Generator Pro", layout="wide")
 
 def create_ebook_chain(llm):
     """Cria a cadeia completa de geração de ebooks"""
@@ -31,14 +26,15 @@ def create_ebook_chain(llm):
     return combined_chain
 
 def main():
+    load_config()
+    st.set_page_config(page_title="📘 Ebook Generator Pro", layout="wide")
+    
     st.title("📘 Ebook Generator Pro")
     st.caption("Crie ebooks profissionais em minutos com IA")
     
     with st.sidebar:
         st.header("Configurações")
-        api_key = st.text_input("OpenAI API Key", 
-                              type="password", 
-                              value=st.session_state.get("api_key", ""))
+        api_key = st.text_input("OpenAI API Key", type="password", value=st.session_state.get("api_key", ""))
         st.session_state.api_key = api_key or None
         
         if api_key:
@@ -50,7 +46,6 @@ def main():
         ebook_length = st.slider("Tamanho (páginas)", 3, 20, 5)
         output_format = st.selectbox("Formato de Saída", ["PDF", "Markdown"])
     
-    # Formulário principal
     with st.form("ebook_form"):
         ebook_topic = st.text_area("Tópico Principal do Ebook", 
                                  placeholder="Ex: Inteligência Artificial para Iniciantes",
@@ -64,26 +59,22 @@ def main():
             
         with st.spinner("Criando seu ebook profissional..."):
             try:
-                # Configuração do LLM
                 llm = OpenAI(
                     openai_api_key=st.session_state.api_key,
                     temperature=0.7,
                     max_tokens=2000
                 )
                 
-                # Criação e execução da cadeia
                 ebook_content = create_ebook_chain(llm)(
                     topic=ebook_topic,
                     style=ebook_style,
                     length=ebook_length
                 )
                 
-                # Exibição do resultado
                 st.success("Ebook gerado com sucesso!")
                 with st.expander("Visualizar Conteúdo"):
                     st.markdown(ebook_content)
                 
-                # Salvamento e download
                 ebook_path = save_ebook(
                     content=ebook_content,
                     title=ebook_topic,
@@ -101,7 +92,6 @@ def main():
                     
             except Exception as e:
                 st.error(f"Erro ao gerar ebook: {str(e)}")
-                st.exception(e)  # Mostra o traceback completo para debug
 
 if __name__ == "__main__":
     main()
