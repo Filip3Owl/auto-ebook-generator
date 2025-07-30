@@ -590,29 +590,107 @@ def create_tips_section():
         </div>
         """, unsafe_allow_html=True)
 
+def validate_and_prepare_params(form_data, config):
+    """Valida e prepara parâmetros para evitar erros de chaves faltantes"""
+    
+    # Mapear tipos de livro para objetivos principais
+    objective_mapping = {
+        "📈 Negócios": "Ensinar estratégias e práticas de negócios eficazes",
+        "🛠️ Técnico": "Explicar conceitos técnicos de forma clara e aplicável",
+        "💡 Autoajuda": "Inspirar e guiar o desenvolvimento pessoal",
+        "🎓 Educacional": "Educar e informar sobre o tema de forma didática",
+        "📝 Narrativo": "Contar uma história envolvente e significativa"
+    }
+    
+    # Mapear dificuldade para depth_level
+    depth_mapping = {
+        "Iniciante": "Básico e acessível",
+        "Intermediário": "Intermediário com exemplos práticos",
+        "Avançado": "Avançado com análises profundas",
+        "Especialista": "Especialista com insights técnicos"
+    }
+    
+    # Preparar parâmetros completos
+    params = {
+        "topic": form_data["topic"],
+        "style": config["style"],
+        "pages": config["pages"],
+        "target_audience": form_data["audience"],
+        "depth_level": depth_mapping.get(form_data["difficulty"], "Intermediário com exemplos práticos"),
+        "main_objective": objective_mapping.get(config["book_type"], "Educar sobre o tema de forma clara"),
+        "tone": form_data["tone"],
+        "focus": form_data["focus"],
+        "key_points": form_data["key_points"],
+        "special_requirements": form_data["special_requirements"],
+        "language": config["language"],
+        "include_images": config["include_images"],
+        "include_exercises": config["include_exercises"],
+        "book_type": config["book_type"],
+        "difficulty": form_data["difficulty"],
+        "audience": form_data["audience"]
+    }
+    
+    return params
+
 def create_ebook_chain(llm):
     """Cria a cadeia completa de geração de ebooks"""
     outline_chain = create_outline_chain(llm)
     writing_chain = create_writing_chain(llm)
     
-    def combined_chain(topic, style, pages, **kwargs):
-        # Estimativa de palavras baseada no número de páginas
-        estimated_words = pages * 250
+    def combined_chain(**params):
+        # Garantir que todos os parâmetros necessários estão presentes
+        required_params = {
+            "topic": params.get("topic", "Tópico não especificado"),
+            "style": params.get("style", "Profissional"),
+            "length": params.get("pages", 25),
+            "target_audience": params.get("target_audience", "Adultos interessados no tema"),
+            "depth_level": params.get("depth_level", "Intermediário com exemplos práticos"),
+            "main_objective": params.get("main_objective", "Educar sobre o tema de forma clara")
+        }
         
-        outline = outline_chain.run(
-            topic=topic, 
-            style=style, 
-            length=pages,
-            **kwargs
-        )
+        # Adicionar parâmetros extras
+        extra_params = {k: v for k, v in params.items() 
+                       if k not in ["pages"] and v is not None}
         
-        ebook = writing_chain.run(
-            outline=outline, 
-            topic=topic, 
-            style=style,
-            word_count=estimated_words,
-            **kwargs
-        )
+        outline_params = {**required_params, **extra_params}
+        
+        try:
+            outline = outline_chain.run(**outline_params)
+        except Exception as e:
+            st.error(f"Erro ao gerar estrutura: {str(e)}")
+            # Fallback com parâmetros mínimos
+            outline = outline_chain.run(
+                topic=params["topic"],
+                style=params["style"],
+                length=params["pages"]
+            )
+        
+        # Parâmetros para escrita
+        writing_params = {
+            "outline": outline,
+            "topic": params["topic"],
+            "style": params["style"],
+            "target_audience": params["target_audience"],
+            "depth_level": params["depth_level"],
+            "main_objective": params["main_objective"]
+        }
+        
+        # Adicionar outros parâmetros se existirem
+        for key in ["tone", "focus", "key_points", "special_requirements", 
+                   "language", "include_images", "include_exercises"]:
+            if key in params and params[key]:
+                writing_params[key] = params[key]
+        
+        try:
+            ebook = writing_chain.run(**writing_params)
+        except Exception as e:
+            st.error(f"Erro ao gerar conteúdo: {str(e)}")
+            # Fallback com parâmetros mínimos
+            ebook = writing_chain.run(
+                outline=outline,
+                topic=params["topic"],
+                style=params["style"]
+            )
         
         return ebook
     
@@ -845,24 +923,10 @@ def main():
                     # Criar cadeia de geração
                     ebook_chain = create_ebook_chain(llm)
                     
-                    # Preparar parâmetros
-                    generation_params = {
-                        "topic": form_data["topic"],
-                        "style": config["style"],
-                        "pages": config["pages"],
-                        "audience": form_data["audience"],
-                        "difficulty": form_data["difficulty"],
-                        "tone": form_data["tone"],
-                        "focus": form_data["focus"],
-                        "key_points": form_data["key_points"],
-                        "special_requirements": form_data["special_requirements"],
-                        "language": config["language"],
-                        "include_images": config["include_images"],
-                        "include_exercises": config["include_exercises"],
-                        "book_type": config["book_type"]
-                    }
+                    # Preparar parâmetros com validação completa
+                    generation_params = validate_and_prepare_params(form_data, config)
                     
-                    # Gerar ebook
+                    # Gerar ebook com parâmetros validados
                     ebook_content = ebook_chain(**generation_params)
                     
                     # Limpar progresso
