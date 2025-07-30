@@ -1,5 +1,6 @@
-from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
+from langchain.prompts import PromptTemplate
+from core.prompts import EBOOK_PROMPTS
 
 def create_writing_chain(llm):
     """Cria a cadeia para escrita de conteúdo"""
@@ -13,4 +14,4 @@ def create_writing_chain(llm):
         Seja detalhado e informativo.
         """
     )
-    return LLMChain(llm=llm, prompt=prompt)
+    return LLMChain(llm=llm, prompt=prompt, verbose=True)
