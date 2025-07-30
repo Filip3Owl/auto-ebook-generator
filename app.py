@@ -8,6 +8,11 @@ import json
 from datetime import datetime
 import traceback
 import time
+from io import BytesIO
+import markdown
+import pdfkit
+from ebooklib import epub
+from bs4 import BeautifulSoup
 
 # Configura paths para imports
 sys.path.append(str(Path(__file__).parent))
@@ -22,313 +27,129 @@ sys.path.append(str(Path(__file__).parent))
 # Configuração inicial
 # load_config()
 
-def apply_dark_theme():
+def apply_minimal_theme():
     """
-    Aplica tema escuro personalizado para fundo preto
+    Aplica tema minimalista com bom contraste
     """
     st.markdown("""
     <style>
-        /* Reset e configurações globais */
+        /* Reset básico */
         .stApp {
-            background-color: #0e1117;
-            color: #ffffff;
+            background-color: #ffffff;
+            color: #333333;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
         
-        /* Header personalizado */
+        /* Header limpo */
         .main-header {
-            font-size: 3.5em;
-            font-weight: 800;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1a1a1a;
             text-align: center;
-            margin: 20px 0;
-            text-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+            margin: 1.5rem 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #f0f0f0;
         }
         
-        .sub-header {
-            font-size: 1.3em;
-            color: #8b92a5;
-            text-align: center;
-            margin-bottom: 40px;
-            font-weight: 300;
+        /* Sidebar simplificada */
+        .css-1d391kg, .css-6qob1r {
+            background-color: #f8f8f8;
+            border-right: 1px solid #e0e0e0;
         }
         
-        /* Sidebar styling */
-        .css-1d391kg {
-            background-color: #1a1d29;
-            border-right: 2px solid #2d3748;
-        }
-        
-        .sidebar .sidebar-content {
-            background-color: #1a1d29;
-            color: #ffffff;
-        }
-        
-        /* Cards e containers */
+        /* Cards limpos */
         .custom-card {
-            background: linear-gradient(145deg, #1e2139, #2d3748);
-            border-radius: 15px;
-            padding: 25px;
-            margin: 20px 0;
-            border: 1px solid #4a5568;
-            box-shadow: 
-                0 10px 30px rgba(0, 0, 0, 0.3),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
         
-        .feature-card {
-            background: linear-gradient(135deg, #667eea15, #764ba215);
-            border-radius: 12px;
-            padding: 20px;
-            margin: 15px 0;
-            border: 1px solid #667eea40;
-            transition: all 0.3s ease;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
-            border-color: #667eea80;
-        }
-        
-        /* Botões personalizados */
+        /* Botões simplificados */
         .stButton > button {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background-color: #1a73e8;
             color: white;
             border: none;
-            border-radius: 25px;
-            padding: 12px 30px;
-            font-weight: 600;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            border-radius: 4px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.2s;
         }
         
         .stButton > button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-            background: linear-gradient(135deg, #5a6fd8, #6b42a0);
+            background-color: #1765cc;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
         
-        /* Form inputs */
+        /* Inputs limpos */
         .stTextInput > div > div > input,
         .stTextArea > div > div > textarea,
         .stSelectbox > div > div > select {
-            background-color: #2d3748;
-            color: #ffffff;
-            border: 2px solid #4a5568;
-            border-radius: 10px;
-            padding: 12px;
-            transition: all 0.3s ease;
+            background-color: #ffffff !important;
+            border: 1px solid #e0e0e0 !important;
+            border-radius: 4px !important;
+            padding: 0.75rem !important;
         }
         
-        .stTextInput > div > div > input:focus,
-        .stTextArea > div > div > textarea:focus,
-        .stSelectbox > div > div > select:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        /* Espaçamento melhorado */
+        .stTextInput, .stTextArea, .stSelectbox {
+            margin-bottom: 1rem;
+        }
+        
+        /* Tabs simplificadas */
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.75rem 1rem;
+            margin: 0 0.25rem;
         }
         
         /* Progress bar */
         .stProgress > div > div > div {
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background-color: #1a73e8 !important;
         }
         
-        /* Success/Error messages */
-        .stSuccess {
-            background: linear-gradient(135deg, #10b981, #059669);
-            border: none;
-            border-radius: 10px;
-            color: white;
+        /* Mensagens mais limpas */
+        .stAlert {
+            border-radius: 8px;
+            padding: 1rem;
         }
         
-        .stError {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-            border: none;
-            border-radius: 10px;
-            color: white;
+        /* Links */
+        a {
+            color: #1a73e8 !important;
+            text-decoration: none;
         }
         
-        .stWarning {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
-            border: none;
-            border-radius: 10px;
-            color: white;
-        }
-        
-        .stInfo {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            border: none;
-            border-radius: 10px;
-            color: white;
-        }
-        
-        /* Expander styling */
-        .streamlit-expanderHeader {
-            background-color: #2d3748;
-            border-radius: 10px;
-            color: #ffffff;
-            font-weight: 600;
-        }
-        
-        .streamlit-expanderContent {
-            background-color: #1a1d29;
-            border-radius: 0 0 10px 10px;
-        }
-        
-        /* Tabs styling */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 8px;
-        }
-        
-        .stTabs [data-baseweb="tab"] {
-            background-color: #2d3748;
-            border-radius: 10px 10px 0 0;
-            color: #8b92a5;
-            font-weight: 600;
-        }
-        
-        .stTabs [aria-selected="true"] {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-        
-        /* Slider customization */
-        .stSlider > div > div > div > div {
-            background: linear-gradient(90deg, #667eea, #764ba2);
-        }
-        
-        /* Radio buttons */
-        .stRadio > div {
-            background-color: #2d3748;
-            border-radius: 10px;
-            padding: 15px;
-        }
-        
-        /* Metrics styling */
-        .metric-card {
-            background: linear-gradient(145deg, #1e2139, #2d3748);
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            border: 1px solid #4a5568;
-            margin: 10px 0;
-        }
-        
-        .metric-value {
-            font-size: 2.5em;
-            font-weight: bold;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .metric-label {
-            color: #8b92a5;
-            font-size: 0.9em;
-            margin-top: 5px;
-        }
-        
-        /* Animation classes */
-        .fade-in {
-            animation: fadeInUp 0.8s ease-out;
-        }
-        
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        /* Glassmorphism effect */
-        .glass-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 25px;
-            margin: 20px 0;
-        }
-        
-        /* Loading spinner */
-        .custom-spinner {
-            border: 4px solid rgba(102, 126, 234, 0.3);
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        /* Scrollbar customization */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: #1a1d29;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, #5a6fd8, #6b42a0);
+        /* Container principal */
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
         }
     </style>
     """, unsafe_allow_html=True)
 
 def create_header():
-    """Cria o cabeçalho principal"""
+    """Cabeçalho minimalista"""
     st.markdown("""
-    <div class="fade-in">
-        <div class="main-header">📚 EBook Generator Pro</div>
-        <div class="sub-header">Transforme suas ideias em ebooks profissionais com inteligência artificial</div>
-    </div>
+    <div class="main-header">Ebook Generator</div>
+    <p style="text-align: center; color: #666; margin-bottom: 2rem;">Transforme ideias em ebooks profissionais</p>
     """, unsafe_allow_html=True)
 
 def create_sidebar():
-    """Cria a sidebar com configurações"""
+    """Sidebar simplificada"""
     with st.sidebar:
-        # Logo e título da sidebar
-        st.markdown("""
-        <div style="text-align: center; padding: 20px 0;">
-            <div style="font-size: 4em;">⚙️</div>
-            <h2 style="color: #667eea; margin: 10px 0;">Configurações</h2>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("## Configurações")
         
-        # Configuração da API Key
-        with st.expander("🔑 Configuração da API", expanded=True):
-            api_key = st.text_input(
-                "OpenAI API Key",
-                type="password",
-                value=st.session_state.get("api_key", ""),
-                help="Obtenha sua chave em platform.openai.com",
-                placeholder="sk-..."
-            )
-            st.session_state.api_key = api_key or None
-            
-            if api_key:
-                st.success("✅ API Key configurada!")
-            else:
-                st.warning("⚠️ API Key necessária")
+        # API Key
+        api_key = st.text_input(
+            "OpenAI API Key",
+            type="password",
+            value=st.session_state.get("api_key", ""),
+            placeholder="sk-..."
+        )
+        st.session_state.api_key = api_key or None
         
         # Configurações do ebook
         with st.expander("📖 Configurações do Ebook", expanded=True):
@@ -407,23 +228,13 @@ def create_sidebar():
                 help="Adiciona atividades e reflexões"
             )
         
-        # Estatísticas da sessão
         st.markdown("---")
-        st.markdown("### 📊 Estatísticas")
-        
+        st.markdown("**Estatísticas**")
         col1, col2 = st.columns(2)
         with col1:
-            st.metric(
-                "Ebooks Gerados",
-                st.session_state.get("ebooks_generated", 0),
-                delta=None
-            )
+            st.metric("Ebooks", st.session_state.get("ebooks_generated", 0))
         with col2:
-            st.metric(
-                "Páginas Totais",
-                st.session_state.get("total_pages", 0),
-                delta=None
-            )
+            st.metric("Páginas", st.session_state.get("total_pages", 0))
         
         return {
             "api_key": api_key,
@@ -432,18 +243,12 @@ def create_sidebar():
             "pages": ebook_pages,
             "num_chapters": num_chapters,
             "language": language,
-            "format": output_format,
-            "include_images": include_images,
-            "include_exercises": include_exercises
+            "formats": output_format
         }
 
 def create_main_form():
-    """Cria o formulário principal"""
-    st.markdown('<div class="custom-card fade-in">', unsafe_allow_html=True)
-    
-    with st.form("ebook_form", clear_on_submit=False):
-        # Título do tópico
-        st.markdown("### 💭 Sobre o que será seu ebook?")
+    """Formulário principal simplificado"""
+    with st.form("ebook_form"):
         ebook_topic = st.text_area(
             "",
             placeholder="📝 Exemplo:\n• Introdução ao Marketing Digital\n• Python para Iniciantes\n• Gestão de Tempo e Produtividade\n• História do Brasil Colonial",
@@ -451,23 +256,19 @@ def create_main_form():
             help="Seja específico sobre o tema principal"
         )
         
-        # Opções avançadas
-        with st.expander("🎯 Opções Avançadas", expanded=False):
-            col1, col2 = st.columns(2)
+        with st.expander("Opções Avançadas"):
+            target_audience = st.text_input(
+                "Público-alvo",
+                value="Adultos interessados no tema"
+            )
             
+            col1, col2 = st.columns(2)
             with col1:
-                target_audience = st.text_input(
-                    "👥 Público-alvo",
-                    value="Adultos interessados no tema",
-                    help="Ex: Profissionais de TI, Estudantes, Empreendedores"
-                )
-                
                 difficulty_level = st.selectbox(
                     "📊 Nível de Dificuldade",
                     ["Iniciante", "Intermediário", "Avançado"],
                     index=0
                 )
-            
             with col2:
                 tone = st.selectbox(
                     "🎭 Tom do Conteúdo",
@@ -488,21 +289,13 @@ def create_main_form():
                 help="Liste os principais tópicos que devem ser abordados"
             )
         
-        # Botão de geração
-        st.markdown("<br>", unsafe_allow_html=True)
-        submit_button = st.form_submit_button(
-            "✨ Gerar Ebook Profissional",
-            use_container_width=True
-        )
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+        submit_button = st.form_submit_button("Gerar Ebook")
     
     return {
         "topic": ebook_topic,
         "audience": target_audience,
         "difficulty": difficulty_level,
         "tone": tone,
-        "focus": focus_area,
         "key_points": key_points,
         "submit": submit_button
     }
@@ -798,68 +591,20 @@ def create_tips_section():
         """, unsafe_allow_html=True)
 
 def display_results(ebook_content, config, form_data):
-    """Exibe os resultados da geração"""
-    # Atualizar estatísticas
+    """Exibe os resultados e opções de download"""
     st.session_state.ebooks_generated = st.session_state.get("ebooks_generated", 0) + 1
     st.session_state.total_pages = st.session_state.get("total_pages", 0) + config["pages"]
     
-    # Mensagem de sucesso
-    st.markdown("""
-    <div class="glass-card fade-in" style="text-align: center;">
-        <h2 style="color: #10b981; margin-bottom: 20px;">🎉 Ebook Gerado com Sucesso!</h2>
-        <p style="color: #8b92a5;">Seu ebook profissional está pronto para download e visualização.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Métricas do ebook gerado
-    col1, col2, col3, col4 = st.columns(4)
-    
-    word_count = len(ebook_content.split())
-    char_count = len(ebook_content)
-    estimated_reading_time = max(1, word_count // 200)  # ~200 palavras por minuto
-    
-    with col1:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{config["pages"]}</div>
-            <div class="metric-label">Páginas</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{word_count:,}</div>
-            <div class="metric-label">Palavras</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{estimated_reading_time}</div>
-            <div class="metric-label">Min. Leitura</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{config["format"].split()[1]}</div>
-            <div class="metric-label">Formato</div>
-        </div>
-        """, unsafe_allow_html=True)
+    st.success("Ebook gerado com sucesso!")
     
     # Tabs para visualização e download
-    tab1, tab2, tab3 = st.tabs(["📖 Visualizar", "⬇️ Download", "📊 Detalhes"])
+    tab1, tab2 = st.tabs(["Visualizar", "Download"])
     
     with tab1:
-        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         st.markdown(ebook_content)
-        st.markdown('</div>', unsafe_allow_html=True)
     
     with tab2:
-        col1, col2 = st.columns([2, 1])
+        st.markdown("### Formatos Disponíveis")
         
         with col1:
             # Preparar arquivo para download
@@ -919,11 +664,10 @@ def display_results(ebook_content, config, form_data):
                 
                 # Fallback: oferecer download direto do texto
                 st.download_button(
-                    label="📝 Baixar como Texto",
+                    label="Download Markdown",
                     data=ebook_content.encode('utf-8'),
-                    file_name=f"ebook_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-                    mime="text/plain",
-                    use_container_width=True
+                    file_name=f"{filename}.md",
+                    mime="text/markdown"
                 )
         
         with col2:
@@ -981,22 +725,15 @@ def display_results(ebook_content, config, form_data):
             """)
 
 def main():
-    """Função principal da aplicação"""
-    # Configuração da página
+    """Função principal"""
     st.set_page_config(
-        page_title="📚 EBook Generator Pro",
+        page_title="Ebook Generator",
         page_icon="📚",
-        layout="wide",
-        initial_sidebar_state="expanded",
-        menu_items={
-            'Get Help': 'https://github.com/seu-usuario/ebook-generator',
-            'Report a bug': "https://github.com/seu-usuario/ebook-generator/issues",
-            'About': "# EBook Generator Pro\nGerador profissional de ebooks com IA"
-        }
+        layout="centered",
+        initial_sidebar_state="expanded"
     )
     
-    # Aplicar tema escuro
-    apply_dark_theme()
+    apply_minimal_theme()
     
     # Inicializar session state
     if "ebooks_generated" not in st.session_state:
@@ -1004,30 +741,35 @@ def main():
     if "total_pages" not in st.session_state:
         st.session_state.total_pages = 0
     
-    # Header principal
     create_header()
     
     # Layout principal
-    # Sidebar com configurações
     config = create_sidebar()
+    form_data = create_main_form()
     
-    # Conteúdo principal
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        # Formulário principal
-        form_data = create_main_form()
+    if form_data["submit"] and form_data["topic"]:
+        if not config["api_key"]:
+            st.error("Por favor, configure sua OpenAI API Key")
+            st.stop()
         
-        # Processamento da geração
-        if form_data["submit"] and form_data["topic"]:
-            if not config["api_key"]:
-                st.error("⚠️ Por favor, configure sua OpenAI API Key na barra lateral")
-                st.stop()
+        if len(form_data["topic"].strip()) < 10:
+            st.warning("Forneça uma descrição mais detalhada do tópico")
+            st.stop()
+        
+        try:
+            llm = OpenAI(
+                openai_api_key=config["api_key"],
+                temperature=0.7,
+                max_tokens=3000,
+                request_timeout=120
+            )
             
-            # Validação básica do tópico
-            if len(form_data["topic"].strip()) < 10:
-                st.warning("⚠️ Por favor, forneça uma descrição mais detalhada do tópico (mínimo 10 caracteres)")
-                st.stop()
+            ebook_content = generate_ebook(
+                llm=llm,
+                topic=form_data["topic"],
+                config=config,
+                form_data=form_data
+            )
             
             try:
                 # Container para o progresso
