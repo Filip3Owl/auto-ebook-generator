@@ -4,13 +4,13 @@ from langchain.llms import OpenAI
 import sys
 from pathlib import Path
 
-# Adiciona o diretório raiz ao path para resolver imports
+# Configura o path para importações
 sys.path.append(str(Path(__file__).parent))
 
 # Importações relativas corrigidas
 from core.prompts import EBOOK_PROMPTS
-from agents.outline_chain import create_outline_chain
-from agents.writer_chain import create_writing_chain
+from agents.outline import create_outline_chain
+from agents.writer import create_writing_chain
 from utils.file_io import save_ebook
 from utils.config import load_config
 
