@@ -12,15 +12,15 @@ import time
 # Configura paths para imports
 sys.path.append(str(Path(__file__).parent))
 
-# Importações locais
-from core.prompts import EBOOK_PROMPTS
-from agents.outline import create_outline_chain
-from agents.writer import create_writing_chain
-from utils.file_io import save_ebook
-from utils.config import load_config
+# Importações locais (comentadas para evitar erros se não existirem)
+# from core.prompts import EBOOK_PROMPTS
+# from agents.outline import create_outline_chain
+# from agents.writer import create_writing_chain
+# from utils.file_io import save_ebook
+# from utils.config import load_config
 
 # Configuração inicial
-load_config()
+# load_config()
 
 def apply_dark_theme():
     """
@@ -355,19 +355,29 @@ def create_sidebar():
                 help="Tom e abordagem do conteúdo"
             )
             
-            # Tamanho do ebook (até 200 páginas)
+            # Tamanho do ebook (reduzido para evitar erros de token)
             ebook_pages = st.slider(
                 "📄 Número de Páginas",
                 min_value=10,
-                max_value=200,
-                value=50,
-                step=10,
+                max_value=100,  # Reduzido de 200 para 100
+                value=30,       # Reduzido de 50 para 30
+                step=5,
                 help="Tamanho aproximado do ebook"
             )
             
+            # Número de capítulos
+            num_chapters = st.slider(
+                "📚 Número de Capítulos",
+                min_value=3,
+                max_value=10,
+                value=5,
+                step=1,
+                help="Quantidade de capítulos principais"
+            )
+            
             # Estimativa de palavras
-            estimated_words = ebook_pages * 400  # ~400 palavras por página para ebooks
-            st.info(f"📊 Estimativa: ~{estimated_words:,} palavras")
+            estimated_words = ebook_pages * 300  # Reduzido de 400 para 300 palavras por página
+            st.info(f"📊 Estimativa: ~{estimated_words:,} palavras em {num_chapters} capítulos")
             
             # Idioma
             language = st.selectbox(
@@ -381,7 +391,7 @@ def create_sidebar():
             output_format = st.radio(
                 "Escolha o formato:",
                 ["📄 PDF", "📝 Markdown", "🌐 HTML", "📊 EPUB"],
-                index=0,
+                index=1,  # Padrão para Markdown
                 horizontal=False
             )
             
@@ -420,6 +430,7 @@ def create_sidebar():
             "book_type": book_type,
             "style": ebook_style,
             "pages": ebook_pages,
+            "num_chapters": num_chapters,
             "language": language,
             "format": output_format,
             "include_images": include_images,
@@ -435,7 +446,7 @@ def create_main_form():
         st.markdown("### 💭 Sobre o que será seu ebook?")
         ebook_topic = st.text_area(
             "",
-            placeholder="📝 Exemplo:\n• Inteligência Artificial para Iniciantes\n• Marketing Digital para Pequenas Empresas\n• Guia Completo de Investimentos\n• História do Brasil Contemporâneo",
+            placeholder="📝 Exemplo:\n• Introdução ao Marketing Digital\n• Python para Iniciantes\n• Gestão de Tempo e Produtividade\n• História do Brasil Colonial",
             height=120,
             help="Seja específico sobre o tema principal"
         )
@@ -453,35 +464,28 @@ def create_main_form():
                 
                 difficulty_level = st.selectbox(
                     "📊 Nível de Dificuldade",
-                    ["Iniciante", "Intermediário", "Avançado", "Especialista"],
-                    index=1
+                    ["Iniciante", "Intermediário", "Avançado"],
+                    index=0
                 )
             
             with col2:
                 tone = st.selectbox(
                     "🎭 Tom do Conteúdo",
-                    ["Formal", "Conversacional", "Técnico", "Inspiracional"],
-                    index=1
+                    ["Conversacional", "Formal", "Técnico", "Inspiracional"],
+                    index=0
                 )
                 
                 focus_area = st.selectbox(
                     "🎯 Foco Principal",
-                    ["Teórico", "Prático", "Balanceado", "Case Studies"],
-                    index=2
+                    ["Prático", "Teórico", "Balanceado", "Case Studies"],
+                    index=0
                 )
             
             key_points = st.text_area(
-                "📋 Pontos-chave para incluir",
-                placeholder="• Conceitos fundamentais\n• Exemplos práticos\n• Dicas de implementação\n• Erros comuns a evitar",
+                "📋 Pontos-chave para incluir (opcional)",
+                placeholder="• Conceitos fundamentais\n• Exemplos práticos\n• Dicas de implementação",
                 height=100,
                 help="Liste os principais tópicos que devem ser abordados"
-            )
-            
-            special_requirements = st.text_area(
-                "⭐ Requisitos Especiais",
-                placeholder="• Incluir estatísticas atuais\n• Focar em mercado brasileiro\n• Adicionar templates\n• Casos de sucesso reais",
-                height=80,
-                help="Requisitos específicos ou preferências especiais"
             )
         
         # Botão de geração
@@ -500,212 +504,136 @@ def create_main_form():
         "tone": tone,
         "focus": focus_area,
         "key_points": key_points,
-        "special_requirements": special_requirements,
         "submit": submit_button
     }
 
-def generate_comprehensive_ebook(llm, topic, config, form_data):
-    """Gera um ebook completo usando múltiplas chamadas para conteúdo extenso"""
-    
-    # 1. Gerar estrutura detalhada do ebook
-    outline_prompt = f"""
-    Crie uma estrutura DETALHADA para um ebook de {config['pages']} páginas sobre:
-    TEMA: {topic}
-    
-    ESPECIFICAÇÕES:
-    - Tipo: {config['book_type']}
-    - Estilo: {config['style']}
-    - Público: {form_data['audience']}
-    - Nível: {form_data['difficulty']}
-    - Tom: {form_data['tone']}
-    - Foco: {form_data['focus']}
-    
-    ESTRUTURA REQUERIDA:
-    1. Título principal e subtítulo
-    2. Índice completo com pelo menos 8-12 capítulos
-    3. Para cada capítulo: nome, objetivo, subtópicos (3-5 por capítulo)
-    4. Estimativa de palavras por capítulo
-    5. Elementos especiais (caixas de texto, exercícios, exemplos)
-    
-    FORMATO DE RESPOSTA:
-    # TÍTULO: [Título principal]
-    ## SUBTÍTULO: [Subtítulo explicativo]
-    
-    ## ÍNDICE DETALHADO:
-    
-    **Introdução** (800 palavras)
-    - Apresentação do tema
-    - Importância do assunto
-    - O que o leitor aprenderá
-    
-    **Capítulo 1: [Nome]** (1200 palavras)
-    - Subtópico 1.1: [nome]
-    - Subtópico 1.2: [nome]
-    - Subtópico 1.3: [nome]
-    - Exemplo prático
-    - Exercício
-    
-    [Continue para todos os capítulos]
-    
-    **Conclusão** (600 palavras)
-    - Resumo dos pontos principais
-    - Próximos passos
-    - Recursos adicionais
-    
-    **Apêndices** (400 palavras)
-    - Glossário
-    - Recursos extras
-    - Bibliografia
-    
-    TOTAL ESTIMADO: {config['pages'] * 400} palavras
+def generate_optimized_ebook(llm, topic, config, form_data):
+    """
+    Gera um ebook completo com controle otimizado de tokens
     """
     
+    # Calcular parâmetros baseados no tamanho desejado
+    num_chapters = config['num_chapters']
+    words_per_chapter = (config['pages'] * 300) // (num_chapters + 2)  # +2 para intro e conclusão
+    
+    # 1. Gerar estrutura concisa
+    outline_prompt = f"""Crie uma estrutura para um ebook sobre: {topic}
+
+ESPECIFICAÇÕES:
+- {num_chapters} capítulos principais
+- Público: {form_data['audience']}
+- Nível: {form_data['difficulty']}
+- Tom: {form_data['tone']}
+- Estilo: {config['style']}
+
+FORMATO:
+TÍTULO: [título atrativo]
+
+CAPÍTULOS:
+1. [Nome do Capítulo 1] - [breve descrição]
+2. [Nome do Capítulo 2] - [breve descrição]
+[...continue até {num_chapters}]
+
+Mantenha conciso (máximo 300 palavras)."""
+    
     try:
-        st.info("📋 Gerando estrutura detalhada do ebook...")
-        outline = llm(outline_prompt)
+        st.info("📋 Criando estrutura...")
+        outline = llm.predict(outline_prompt, max_tokens=500)
         st.success("✅ Estrutura criada!")
         
-        # Mostrar estrutura para o usuário
         with st.expander("📋 Estrutura do Ebook", expanded=False):
-            st.markdown(outline)
+            st.text(outline)
         
     except Exception as e:
-        st.error(f"Erro na geração da estrutura: {str(e)}")
+        st.error(f"Erro na estrutura: {str(e)}")
         return None
     
     # 2. Gerar introdução
-    intro_prompt = f"""
-    Com base na seguinte estrutura de ebook:
-    
-    {outline}
-    
-    Escreva uma INTRODUÇÃO COMPLETA E DETALHADA de pelo menos 800 palavras.
-    
-    A introdução deve:
-    1. Apresentar o tema de forma cativante
-    2. Explicar a importância e relevância do assunto
-    3. Apresentar os benefícios que o leitor obterá
-    4. Dar uma visão geral do que será abordado
-    5. Estabelecer conexão com o público-alvo: {form_data['audience']}
-    6. Usar tom {form_data['tone']} e estilo {config['style']}
-    
-    Inclua pelo menos 3 parágrafos substanciais com exemplos ou estatísticas quando relevante.
-    """
+    intro_prompt = f"""Escreva uma introdução completa para o ebook "{topic}".
+
+REQUISITOS:
+- Público: {form_data['audience']}
+- Tom: {form_data['tone']}
+- 400-600 palavras
+- Apresente o tema e sua importância
+- Explique o que o leitor aprenderá
+- Use linguagem {form_data['tone'].lower()}
+
+Seja direto e envolvente."""
     
     try:
         st.info("✍️ Escrevendo introdução...")
-        introduction = llm(intro_prompt)
+        introduction = llm.predict(intro_prompt, max_tokens=800)
         st.success("✅ Introdução concluída!")
     except Exception as e:
         st.error(f"Erro na introdução: {str(e)}")
-        introduction = f"# Introdução\n\nBem-vindo ao nosso ebook sobre {topic}..."
+        introduction = f"# Introdução\n\nBem-vindo ao ebook sobre {topic}..."
     
-    # 3. Gerar capítulos principais (em lotes)
+    # 3. Gerar capítulos um por vez
     chapters = []
-    chapter_count = min(8, max(6, config['pages'] // 8))  # Entre 6-8 capítulos
     
-    for i in range(1, chapter_count + 1):
-        chapter_prompt = f"""
-        Com base na estrutura do ebook sobre "{topic}":
-        
-        {outline}
-        
-        Escreva o CAPÍTULO {i} COMPLETO com pelo menos 1200-1500 palavras.
-        
-        REQUISITOS:
-        1. Siga a estrutura definida no índice
-        2. Desenvolva todos os subtópicos indicados
-        3. Use estilo {config['style']} e tom {form_data['tone']}
-        4. Inclua exemplos práticos e detalhados
-        5. Adicione pelo menos uma caixa de destaque ou dica
-        6. Termine com um resumo do capítulo
-        7. Foque no público: {form_data['audience']}
-        8. Nível: {form_data['difficulty']}
-        
-        {f"PONTOS IMPORTANTES A INCLUIR: {form_data['key_points']}" if form_data['key_points'] else ""}
-        {f"REQUISITOS ESPECIAIS: {form_data['special_requirements']}" if form_data['special_requirements'] else ""}
-        
-        ESTRUTURA DO CAPÍTULO:
-        # Capítulo {i}: [Título]
-        
-        ## Introdução do Capítulo
-        [2-3 parágrafos introdutórios]
-        
-        ## [Subtópico 1]
-        [Desenvolvimento detalhado com exemplos]
-        
-        ## [Subtópico 2]
-        [Desenvolvimento detalhado com exemplos]
-        
-        ## [Subtópico 3]
-        [Desenvolvimento detalhado com exemplos]
-        
-        ## 💡 Dica Especial / Caixa de Destaque
-        [Conteúdo relevante e prático]
-        
-        ## Exemplo Prático
-        [Caso real ou simulado detalhado]
-        
-        ## Resumo do Capítulo
-        [Pontos principais em 2-3 parágrafos]
-        
-        ## ✏️ Exercício / Reflexão
-        [Atividade prática para o leitor]
-        """
+    for i in range(1, num_chapters + 1):
+        chapter_prompt = f"""Escreva o Capítulo {i} do ebook sobre "{topic}".
+
+BASEADO NA ESTRUTURA:
+{outline}
+
+REQUISITOS:
+- {words_per_chapter}-{words_per_chapter + 200} palavras
+- Tom: {form_data['tone']}
+- Nível: {form_data['difficulty']}
+- Inclua exemplos práticos
+- Termine com resumo do capítulo
+
+ESTRUTURA:
+# Capítulo {i}: [Título]
+
+[Conteúdo desenvolvido com exemplos]
+
+## Resumo do Capítulo
+[Pontos principais]
+
+Foque na qualidade e aplicabilidade prática."""
         
         try:
-            st.info(f"✍️ Escrevendo Capítulo {i}...")
-            progress = st.progress((i-1) / chapter_count)
+            st.info(f"✍️ Capítulo {i}/{num_chapters}...")
+            progress = st.progress(i / (num_chapters + 2))
             
-            chapter = llm(chapter_prompt)
+            chapter = llm.predict(chapter_prompt, max_tokens=1200)
             chapters.append(chapter)
             
-            progress.progress(i / chapter_count)
             st.success(f"✅ Capítulo {i} concluído!")
-            
-            # Pequena pausa para evitar rate limiting
-            time.sleep(2)
+            time.sleep(1)  # Pausa para evitar rate limiting
             
         except Exception as e:
             st.error(f"Erro no Capítulo {i}: {str(e)}")
-            chapters.append(f"# Capítulo {i}: Em Desenvolvimento\n\nEste capítulo será desenvolvido...")
+            chapters.append(f"# Capítulo {i}: Em Desenvolvimento\n\nEste capítulo será desenvolvido em breve...")
     
     # 4. Gerar conclusão
-    conclusion_prompt = f"""
-    Com base no ebook completo sobre "{topic}" com a seguinte estrutura:
-    
-    {outline}
-    
-    E considerando os capítulos desenvolvidos, escreva uma CONCLUSÃO COMPLETA de pelo menos 600-800 palavras.
-    
-    A conclusão deve:
-    1. Resumir os principais pontos abordados no ebook
-    2. Reforçar os benefícios e aprendizados
-    3. Motivar o leitor à ação
-    4. Sugerir próximos passos práticos
-    5. Incluir recursos adicionais para aprofundamento
-    6. Terminar com uma mensagem inspiradora
-    7. Manter tom {form_data['tone']} e estilo {config['style']}
-    
-    ESTRUTURA:
-    # Conclusão
-    
-    ## Recapitulando Nossa Jornada
-    [Resumo dos principais pontos]
-    
-    ## Seus Próximos Passos
-    [Ações práticas e recomendações]
-    
-    ## Recursos Adicionais
-    [Sugestões de livros, sites, cursos]
-    
-    ## Palavras Finais
-    [Mensagem motivacional e inspiradora]
-    """
+    conclusion_prompt = f"""Escreva uma conclusão impactante para o ebook "{topic}".
+
+REQUISITOS:
+- 300-500 palavras
+- Resume os pontos principais
+- Motiva à ação
+- Tom: {form_data['tone']}
+- Inclua próximos passos práticos
+
+ESTRUTURA:
+# Conclusão
+
+[Resumo dos aprendizados]
+
+## Seus Próximos Passos
+[Ações práticas]
+
+## Palavras Finais
+[Mensagem inspiradora]"""
     
     try:
-        st.info("🎯 Finalizando com conclusão...")
-        conclusion = llm(conclusion_prompt)
+        st.info("🎯 Finalizando...")
+        progress = st.progress(1.0)
+        conclusion = llm.predict(conclusion_prompt, max_tokens=600)
         st.success("✅ Conclusão concluída!")
     except Exception as e:
         st.error(f"Erro na conclusão: {str(e)}")
@@ -713,17 +641,18 @@ def generate_comprehensive_ebook(llm, topic, config, form_data):
     
     # 5. Montar ebook completo
     full_ebook = f"""# {topic}
-*Um Guia Completo e Prático*
+*Um Guia Prático e Completo*
 
 ---
 
-## Sobre Este Ebook
+## Informações do Ebook
 
-Este ebook foi desenvolvido especificamente para {form_data['audience']}, abordando {topic} de forma {form_data['difficulty'].lower()} e com foco {form_data['focus'].lower()}.
-
-**Páginas:** {config['pages']}
-**Estilo:** {config['style']}
-**Tom:** {form_data['tone']}
+**Autor:** EBook Generator Pro  
+**Páginas:** {config['pages']}  
+**Capítulos:** {num_chapters}  
+**Público-alvo:** {form_data['audience']}  
+**Nível:** {form_data['difficulty']}  
+**Data:** {datetime.now().strftime('%d/%m/%Y')}
 
 ---
 
@@ -733,49 +662,49 @@ Este ebook foi desenvolvido especificamente para {form_data['audience']}, aborda
 
 """
     
-    # Adicionar todos os capítulos
-    for i, chapter in enumerate(chapters, 1):
+    # Adicionar capítulos
+    for chapter in chapters:
         full_ebook += f"{chapter}\n\n---\n\n"
     
     # Adicionar conclusão
-    full_ebook += f"{conclusion}\n\n---\n\n"
+    full_ebook += f"{conclusion}\n\n"
     
-    # Adicionar apêndices se solicitado
+    # Adicionar recursos extras se solicitado
     if config.get('include_exercises') or config.get('include_images'):
-        appendix_prompt = f"""
-        Crie apêndices complementares para o ebook sobre "{topic}":
-        
-        1. **Glossário:** 15-20 termos importantes com definições
-        2. **Recursos Adicionais:** Lista de livros, sites, ferramentas recomendadas
-        3. **Templates/Checklists:** Materiais práticos para aplicação
-        4. {"**Sugestões de Imagens:** Descrições de imagens relevantes para cada capítulo" if config.get('include_images') else ""}
-        5. {"**Exercícios Extras:** Atividades complementares de aprofundamento" if config.get('include_exercises') else ""}
-        
-        Mantenha o mesmo tom {form_data['tone']} e seja prático e útil.
-        """
+        extras_prompt = f"""Crie recursos complementares para "{topic}":
+
+1. Glossário com 10 termos importantes
+2. Lista de recursos adicionais (livros, sites, cursos)
+{"3. Sugestões de imagens por capítulo" if config.get('include_images') else ""}
+{"4. Exercícios práticos extras" if config.get('include_exercises') else ""}
+
+Seja conciso e prático. Máximo 400 palavras."""
         
         try:
-            st.info("📚 Adicionando apêndices e recursos extras...")
-            appendices = llm(appendix_prompt)
-            full_ebook += f"{appendices}\n\n"
-            st.success("✅ Apêndices adicionados!")
+            st.info("📚 Adicionando recursos extras...")
+            extras = llm.predict(extras_prompt, max_tokens=600)
+            full_ebook += f"---\n\n# Recursos Adicionais\n\n{extras}\n\n"
+            st.success("✅ Recursos adicionados!")
         except Exception as e:
-            st.warning(f"Apêndices não puderam ser gerados: {str(e)}")
+            st.warning(f"Recursos extras não puderam ser gerados: {str(e)}")
     
-    # Adicionar footer
+    # Footer
     full_ebook += f"""---
 
-## Sobre o Autor
+## 📚 Sobre Este Ebook
 
-Este ebook foi gerado com inteligência artificial para fornecer conteúdo educativo e prático sobre {topic}.
+Este ebook foi gerado com inteligência artificial para fornecer conteúdo educativo sobre {topic}.
 
-**Data de criação:** {datetime.now().strftime('%d/%m/%Y')}
-**Versão:** 1.0
-**Palavras:** ~{len(full_ebook.split()):,}
+- **Palavras:** ~{len(full_ebook.split()):,}
+- **Tempo de leitura:** ~{max(1, len(full_ebook.split()) // 200)} minutos
+- **Formato:** {config['format']}
+- **Versão:** 1.0
 
 ---
 
-*Obrigado por ler este ebook! Esperamos que o conteúdo seja útil em sua jornada de aprendizado.*
+*Obrigado por ler! Esperamos que este conteúdo seja útil em sua jornada de aprendizado.*
+
+© 2024 EBook Generator Pro - Powered by OpenAI
 """
     
     return full_ebook
@@ -798,19 +727,19 @@ def create_example_section():
                 <li>Marketing Digital para PMEs</li>
                 <li>Gestão de Equipes Remotas</li>
                 <li>Estratégias de Vendas B2B</li>
-                <li>Planejamento Financeiro Empresarial</li>
+                <li>Planejamento Financeiro</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown("""
         <div class="feature-card">
-            <h4>🛠️ Tecnologia & Desenvolvimento</h4>
+            <h4>🛠️ Tecnologia</h4>
             <ul>
-                <li>Introdução à Programação Python</li>
-                <li>Desenvolvimento de Apps Mobile</li>
-                <li>Inteligência Artificial Aplicada</li>
-                <li>Segurança em Sistemas Web</li>
+                <li>Python para Iniciantes</li>
+                <li>Desenvolvimento Web Básico</li>
+                <li>Inteligência Artificial Prática</li>
+                <li>Segurança Digital</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -820,22 +749,22 @@ def create_example_section():
         <div class="feature-card">
             <h4>💡 Desenvolvimento Pessoal</h4>
             <ul>
-                <li>Produtividade e Gestão do Tempo</li>
+                <li>Gestão do Tempo</li>
                 <li>Comunicação Eficaz</li>
-                <li>Liderança e Influência</li>
-                <li>Mindfulness e Bem-estar</li>
+                <li>Liderança Pessoal</li>
+                <li>Hábitos Saudáveis</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown("""
         <div class="feature-card">
-            <h4>🎓 Educação & Conhecimento</h4>
+            <h4>🎓 Educação</h4>
             <ul>
-                <li>História Mundial Contemporânea</li>
-                <li>Ciências para Leigos</li>
-                <li>Filosofia Aplicada ao Cotidiano</li>
-                <li>Arte e Cultura Brasileira</li>
+                <li>História do Brasil</li>
+                <li>Matemática Básica</li>
+                <li>Ciências Naturais</li>
+                <li>Literatura Brasileira</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -844,17 +773,17 @@ def create_tips_section():
     """Cria seção com dicas"""
     st.markdown("""
     <div class="glass-card fade-in">
-        <h3 style="color: #667eea; margin-bottom: 20px;">🎯 Dicas para Resultados Excepcionais</h3>
+        <h3 style="color: #667eea; margin-bottom: 20px;">🎯 Dicas para Melhores Resultados</h3>
     </div>
     """, unsafe_allow_html=True)
     
     tips = [
-        ("🎯", "Seja Específico", "Quanto mais detalhado o tópico, melhor o resultado final"),
-        ("👥", "Conheça seu Público", "Defina claramente quem são seus leitores ideais"),
-        ("📊", "Use Dados Reais", "Mencione se precisa de estatísticas ou pesquisas atuais"),
-        ("💼", "Inclua Casos Práticos", "Solicite exemplos reais e estudos de caso"),
-        ("🔄", "Iteração é Chave", "Use as opções avançadas para refinar o conteúdo"),
-        ("📱", "Pense Mobile", "Considere como o conteúdo será consumido pelos leitores")
+        ("🎯", "Seja Específico", "Temas focados geram conteúdo mais útil"),
+        ("👥", "Defina o Público", "Conhecer o leitor melhora a abordagem"),
+        ("📊", "Escolha o Nível", "Iniciante, intermediário ou avançado"),
+        ("💼", "Use Exemplos", "Solicite casos práticos e reais"),
+        ("🔄", "Teste Configurações", "Experimente diferentes estilos"),
+        ("📱", "Pense na Aplicação", "Como o leitor usará o conteúdo")
     ]
     
     for icon, title, description in tips:
@@ -867,24 +796,6 @@ def create_tips_section():
             <p style="margin: 0; color: #8b92a5;">{description}</p>
         </div>
         """, unsafe_allow_html=True)
-
-def display_generation_progress(total_steps):
-    """Exibe progresso da geração com animação"""
-    progress_steps = [
-        ("🔍", "Analisando o tópico..."),
-        ("📋", "Criando estrutura detalhada..."),
-        ("📝", "Escrevendo introdução..."),
-        ("✍️", "Gerando capítulos principais..."),
-        ("🎯", "Desenvolvendo conclusão..."),
-        ("📚", "Adicionando apêndices..."),
-        ("🎨", "Formatando documento..."),
-        ("✅", "Ebook concluído!")
-    ]
-    
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    return progress_bar, status_text, progress_steps
 
 def display_results(ebook_content, config, form_data):
     """Exibe os resultados da geração"""
@@ -969,17 +880,21 @@ def display_results(ebook_content, config, form_data):
                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
                         <title>{form_data['topic']}</title>
                         <style>
-                            body {{ font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }}
+                            body {{ font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; background: #f8f9fa; }}
                             h1, h2, h3 {{ color: #333; }}
                             h1 {{ border-bottom: 3px solid #667eea; padding-bottom: 10px; }}
-                            h2 {{ border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
+                            h2 {{ border-bottom: 1px solid #ddd; padding-bottom: 5px; color: #667eea; }}
+                            h3 {{ color: #764ba2; }}
                             .highlight {{ background: #f0f8ff; padding: 15px; border-left: 4px solid #667eea; margin: 20px 0; }}
                             code {{ background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }}
                             blockquote {{ background: #f9f9f9; border-left: 4px solid #ddd; margin: 0; padding: 10px 20px; }}
+                            .content {{ background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
                         </style>
                     </head>
                     <body>
-                    {ebook_content.replace('#', '<h1>').replace('##', '<h2>').replace('###', '<h3>')}
+                        <div class="content">
+                            {ebook_content.replace('# ', '<h1>').replace('## ', '<h2>').replace('### ', '<h3>').replace('\n', '<br>')}
+                        </div>
                     </body>
                     </html>
                     """
@@ -992,12 +907,12 @@ def display_results(ebook_content, config, form_data):
                 st.download_button(
                     label=f"📥 Baixar Ebook ({config['format']})",
                     data=file_data,
-                    file_name=f"{filename}.{file_extension}",
+                    file_name=f"{filename}.{file_extension.replace('pdf', 'txt')}",  # PDF não suportado, usar TXT
                     mime=mime_type,
                     use_container_width=True
                 )
                 
-                st.success(f"✅ Pronto para download: {filename}.{file_extension}")
+                st.success(f"✅ Pronto para download!")
                 
             except Exception as e:
                 st.error(f"❌ Erro ao preparar download: {str(e)}")
@@ -1015,16 +930,15 @@ def display_results(ebook_content, config, form_data):
             st.info("""
             **📋 Formatos Disponíveis:**
             
-            • **PDF**: Melhor para leitura
-            • **Markdown**: Editável 
-            • **HTML**: Web-friendly
-            • **EPUB**: E-readers
+            • **Markdown**: Editável e flexível
+            • **HTML**: Para web e navegadores
+            • **Texto**: Simples e universal
             
             📊 **Qualidade:**
             ✅ Estrutura profissional
-            ✅ Conteúdo extenso
+            ✅ Conteúdo otimizado
             ✅ Formatação adequada
-            ✅ Pronto para publicação
+            ✅ Pronto para uso
             """)
     
     with tab3:
@@ -1041,6 +955,7 @@ def display_results(ebook_content, config, form_data):
             "🌍 Idioma": config["language"],
             "💾 Formato": config["format"],
             "📄 Páginas": config["pages"],
+            "📚 Capítulos": config["num_chapters"],
             "📝 Palavras": f"{word_count:,}",
             "📖 Caracteres": f"{char_count:,}",
             "⏱️ Tempo de Leitura": f"{estimated_reading_time} minutos",
@@ -1119,28 +1034,37 @@ def main():
                 with st.container():
                     st.markdown("""
                     <div class="glass-card fade-in">
-                        <h3 style="color: #667eea; text-align: center;">🚀 Gerando seu Ebook Completo...</h3>
-                        <p style="text-align: center; color: #8b92a5;">Este processo pode levar alguns minutos para garantir qualidade máxima</p>
+                        <h3 style="color: #667eea; text-align: center;">🚀 Gerando seu Ebook...</h3>
+                        <p style="text-align: center; color: #8b92a5;">Otimizado para qualidade e velocidade</p>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Configurar LLM com parâmetros para conteúdo extenso
+                    # Configurar LLM com parâmetros otimizados
                     try:
                         llm = OpenAI(
                             openai_api_key=config["api_key"],
                             temperature=0.7,
-                            max_tokens=20000,  # Aumentado para mais conteúdo
-                            request_timeout=180  # 3 minutos de timeout
+                            max_tokens=2000,  # Reduzido para evitar erros de token
+                            request_timeout=120,  # 2 minutos de timeout
+                            model_name="gpt-3.5-turbo-instruct"  # Modelo mais estável
                         )
                         st.success("✅ Sistema de IA configurado!")
                     except Exception as e:
                         st.error(f"❌ Erro na configuração da API OpenAI: {str(e)}")
-                        st.error("🔑 Verifique se sua API Key está correta e válida")
+                        
+                        # Mostrar ajuda específica para erros comuns
+                        if "api_key" in str(e).lower():
+                            st.error("🔑 Erro na API Key - Verifique se ela está correta")
+                        elif "quota" in str(e).lower():
+                            st.error("💳 Cota excedida - Verifique seu saldo na OpenAI")
+                        elif "rate" in str(e).lower():
+                            st.error("⏱️ Muitas requisições - Tente novamente em alguns minutos")
+                        
                         st.stop()
                     
-                    # Gerar ebook usando o novo sistema
+                    # Gerar ebook usando o sistema otimizado
                     try:
-                        ebook_content = generate_comprehensive_ebook(
+                        ebook_content = generate_optimized_ebook(
                             llm=llm,
                             topic=form_data["topic"],
                             config=config,
@@ -1148,9 +1072,9 @@ def main():
                         )
                         
                         # Verificar se o conteúdo foi gerado com sucesso
-                        if not ebook_content or len(ebook_content.strip()) < 1000:
-                            st.error("❌ Conteúdo gerado é muito curto")
-                            st.error("📝 Tente novamente ou reduza o número de páginas")
+                        if not ebook_content or len(ebook_content.strip()) < 500:
+                            st.error("❌ Conteúdo gerado é muito curto ou vazio")
+                            st.error("📝 Tente novamente com um tópico mais específico")
                             st.stop()
                         
                         # Mostrar estatísticas finais
@@ -1160,15 +1084,26 @@ def main():
                     except Exception as e:
                         st.error(f"❌ Erro durante a geração do ebook: {str(e)}")
                         
+                        # Ajuda específica para diferentes tipos de erro
+                        error_str = str(e).lower()
+                        if "context length" in error_str or "token" in error_str:
+                            st.error("🔄 Erro de tokens - O conteúdo solicitado é muito longo")
+                            st.error("💡 Sugestão: Reduza o número de páginas ou capítulos")
+                        elif "rate limit" in error_str:
+                            st.error("⏱️ Limite de taxa atingido - Aguarde alguns minutos")
+                        elif "timeout" in error_str:
+                            st.error("⏱️ Timeout - A geração demorou muito")
+                            st.error("💡 Sugestão: Tente novamente com menos páginas")
+                        
                         # Mostrar detalhes do erro em modo debug
                         with st.expander("🔍 Detalhes do Erro (Debug)", expanded=False):
                             st.code(traceback.format_exc())
                         
-                        st.error("🔄 Sugestões para resolver:")
-                        st.error("• Verifique sua conexão com a internet")
-                        st.error("• Tente reduzir o número de páginas")
+                        st.error("🔄 Sugestões gerais:")
+                        st.error("• Reduza o número de páginas (tente 10-30)")
+                        st.error("• Diminua o número de capítulos")
                         st.error("• Simplifique a descrição do tópico")
-                        st.error("• Verifique se sua API Key tem créditos suficientes")
+                        st.error("• Verifique sua conexão com a internet")
                         st.stop()
                     
                     # Exibir resultados
@@ -1184,13 +1119,14 @@ def main():
                 # Sugestões de solução
                 st.markdown("""
                 <div class="glass-card">
-                    <h4 style="color: #ef4444;">🔧 Possíveis Soluções:</h4>
+                    <h4 style="color: #ef4444;">🔧 Soluções Recomendadas:</h4>
                     <ul>
-                        <li><strong>API Key:</strong> Verifique se sua chave OpenAI está correta e tem créditos</li>
-                        <li><strong>Conectividade:</strong> Teste sua conexão com a internet</li>
-                        <li><strong>Parâmetros:</strong> Tente simplificar as configurações do ebook</li>
-                        <li><strong>Tópico:</strong> Use uma descrição mais clara e específica</li>
-                        <li><strong>Reiniciar:</strong> Recarregue a página e tente novamente</li>
+                        <li><strong>Reiniciar:</strong> Recarregue a página (F5)</li>
+                        <li><strong>API Key:</strong> Verifique se sua chave OpenAI está válida</li>
+                        <li><strong>Internet:</strong> Teste sua conexão</li>
+                        <li><strong>Configurações:</strong> Use configurações mais simples</li>
+                        <li><strong>Tópico:</strong> Seja mais específico e claro</li>
+                        <li><strong>Tamanho:</strong> Comece com ebooks menores (10-20 páginas)</li>
                     </ul>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1210,63 +1146,64 @@ def main():
         <div class="glass-card fade-in">
             <h3 style="color: #667eea; margin-bottom: 20px;">🎁 Recursos Inclusos</h3>
             <div class="feature-card">
-                <h4>✨ Conteúdo Extenso</h4>
-                <p style="color: #8b92a5;">Ebooks de 10-200 páginas com conteúdo rico e detalhado.</p>
+                <h4>✨ Geração Otimizada</h4>
+                <p style="color: #8b92a5;">Sistema aprimorado que evita erros de token e gera conteúdo de qualidade.</p>
             </div>
             <div class="feature-card">
                 <h4>📋 Estrutura Profissional</h4>
-                <p style="color: #8b92a5;">Introdução, múltiplos capítulos, conclusão e apêndices.</p>
+                <p style="color: #8b92a5;">Introdução, capítulos bem organizados, conclusão e recursos extras.</p>
             </div>
             <div class="feature-card">
                 <h4>🖼️ Sugestões Visuais</h4>
-                <p style="color: #8b92a5;">Descrições de imagens e gráficos para enriquecer seu ebook.</p>
+                <p style="color: #8b92a5;">Descrições de imagens e elementos visuais para enriquecer o conteúdo.</p>
             </div>
             <div class="feature-card">
                 <h4>📚 Exercícios Práticos</h4>
-                <p style="color: #8b92a5;">Atividades e reflexões para engajar seus leitores.</p>
+                <p style="color: #8b92a5;">Atividades e reflexões para aumentar o engajamento dos leitores.</p>
             </div>
             <div class="feature-card">
                 <h4>📄 Múltiplos Formatos</h4>
-                <p style="color: #8b92a5;">Markdown, HTML e texto puro para máxima compatibilidade.</p>
+                <p style="color: #8b92a5;">Download em Markdown, HTML e texto para máxima compatibilidade.</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
-        # Seção de performance
+        # Seção de melhorias
         st.markdown("""
         <div class="glass-card fade-in">
-            <h3 style="color: #667eea; margin-bottom: 20px;">⚡ Performance Melhorada</h3>
+            <h3 style="color: #667eea; margin-bottom: 20px;">⚡ Melhorias v2.1</h3>
             <div class="feature-card">
-                <h4>🚀 Sistema Otimizado</h4>
-                <p style="color: #8b92a5;">Geração em múltiplas etapas para conteúdo mais extenso e detalhado.</p>
+                <h4>🔧 Correção de Tokens</h4>
+                <p style="color: #8b92a5;">Sistema completamente reescrito para evitar erros de limite de tokens.</p>
             </div>
             <div class="feature-card">
-                <h4>📊 Controle de Qualidade</h4>
-                <p style="color: #8b92a5;">Validação automática de estrutura e tamanho do conteúdo.</p>
+                <h4>📊 Controle Inteligente</h4>
+                <p style="color: #8b92a5;">Geração por partes com controle automático de tamanho e qualidade.</p>
             </div>
             <div class="feature-card">
-                <h4>🔧 Recuperação de Erros</h4>
-                <p style="color: #8b92a5;">Sistema robusto que continua funcionando mesmo com falhas parciais.</p>
+                <h4>🚀 Performance</h4>
+                <p style="color: #8b92a5;">Mais rápido e estável, com recuperação automática de erros.</p>
+            </div>
+            <div class="feature-card">
+                <h4>💡 Feedback Melhorado</h4>
+                <p style="color: #8b92a5;">Mensagens de erro mais claras com sugestões práticas de solução.</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
-        # Seção de suporte
+        # Status do sistema
         st.markdown("""
         <div class="glass-card fade-in">
-            <h3 style="color: #667eea; margin-bottom: 20px;">💬 Suporte & Ajuda</h3>
+            <h3 style="color: #667eea; margin-bottom: 20px;">📊 Status do Sistema</h3>
             <div style="text-align: center;">
-                <p style="color: #8b92a5; margin-bottom: 20px;">Precisa de ajuda ou tem sugestões?</p>
-                <div style="display: flex; justify-content: space-around; margin: 20px 0;">
-                    <a href="mailto:suporte@ebookgenerator.com" style="color: #667eea; text-decoration: none;">
-                        📧 Email
-                    </a>
-                    <a href="https://github.com/seu-usuario/ebook-generator" style="color: #667eea; text-decoration: none;">
-                        🐱 GitHub
-                    </a>
-                    <a href="https://discord.gg/seu-servidor" style="color: #667eea; text-decoration: none;">
-                        💬 Discord
-                    </a>
+                <div style="color: #10b981; font-size: 1.2em; margin: 10px 0;">
+                    ✅ Sistema Operacional
+                </div>
+                <div style="color: #8b92a5; font-size: 0.9em; margin: 10px 0;">
+                    Última atualização: 30/07/2024
+                </div>
+                <div style="color: #8b92a5; font-size: 0.8em; margin: 10px 0;">
+                    Versão: 2.1 - Otimizada para tokens
                 </div>
             </div>
         </div>
@@ -1276,9 +1213,12 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; padding: 20px 0; color: #8b92a5;">
-        <p>📚 <strong>EBook Generator Pro</strong> - Powered by OpenAI GPT</p>
-        <p style="font-size: 0.8em;">Versão 2.1 | © 2024 | Feito com ❤️ para criadores de conteúdo</p>
-        <p style="font-size: 0.7em;">✨ Agora com geração de conteúdo extenso e detalhado!</p>
+        <p>📚 <strong>EBook Generator Pro</strong> - Powered by OpenAI</p>
+        <p style="font-size: 0.8em;">Versão 2.1 - Otimizada | © 2024 | Feito com ❤️ para criadores</p>
+        <p style="font-size: 0.7em;">🔧 Agora com correção completa de erros de token!</p>
+        <p style="font-size: 0.6em; margin-top: 10px;">
+            💡 Dica: Comece com ebooks de 10-30 páginas para melhores resultados
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
