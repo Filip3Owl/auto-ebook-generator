@@ -1,0 +1,7 @@
+streamlit
+langchain
+openai
+python-dotenv
+fpdf2
+markdown2
+tiktoken  # Para contagem de tokens
