@@ -7,6 +7,7 @@ import base64
 import json
 from datetime import datetime
 import traceback
+import time
 
 # Configura paths para imports
 sys.path.append(str(Path(__file__).parent))
@@ -357,15 +358,15 @@ def create_sidebar():
             # Tamanho do ebook (até 200 páginas)
             ebook_pages = st.slider(
                 "📄 Número de Páginas",
-                min_value=5,
+                min_value=10,
                 max_value=200,
-                value=25,
-                step=5,
+                value=50,
+                step=10,
                 help="Tamanho aproximado do ebook"
             )
             
             # Estimativa de palavras
-            estimated_words = ebook_pages * 250  # ~250 palavras por página
+            estimated_words = ebook_pages * 400  # ~400 palavras por página para ebooks
             st.info(f"📊 Estimativa: ~{estimated_words:,} palavras")
             
             # Idioma
@@ -503,6 +504,282 @@ def create_main_form():
         "submit": submit_button
     }
 
+def generate_comprehensive_ebook(llm, topic, config, form_data):
+    """Gera um ebook completo usando múltiplas chamadas para conteúdo extenso"""
+    
+    # 1. Gerar estrutura detalhada do ebook
+    outline_prompt = f"""
+    Crie uma estrutura DETALHADA para um ebook de {config['pages']} páginas sobre:
+    TEMA: {topic}
+    
+    ESPECIFICAÇÕES:
+    - Tipo: {config['book_type']}
+    - Estilo: {config['style']}
+    - Público: {form_data['audience']}
+    - Nível: {form_data['difficulty']}
+    - Tom: {form_data['tone']}
+    - Foco: {form_data['focus']}
+    
+    ESTRUTURA REQUERIDA:
+    1. Título principal e subtítulo
+    2. Índice completo com pelo menos 8-12 capítulos
+    3. Para cada capítulo: nome, objetivo, subtópicos (3-5 por capítulo)
+    4. Estimativa de palavras por capítulo
+    5. Elementos especiais (caixas de texto, exercícios, exemplos)
+    
+    FORMATO DE RESPOSTA:
+    # TÍTULO: [Título principal]
+    ## SUBTÍTULO: [Subtítulo explicativo]
+    
+    ## ÍNDICE DETALHADO:
+    
+    **Introdução** (800 palavras)
+    - Apresentação do tema
+    - Importância do assunto
+    - O que o leitor aprenderá
+    
+    **Capítulo 1: [Nome]** (1200 palavras)
+    - Subtópico 1.1: [nome]
+    - Subtópico 1.2: [nome]
+    - Subtópico 1.3: [nome]
+    - Exemplo prático
+    - Exercício
+    
+    [Continue para todos os capítulos]
+    
+    **Conclusão** (600 palavras)
+    - Resumo dos pontos principais
+    - Próximos passos
+    - Recursos adicionais
+    
+    **Apêndices** (400 palavras)
+    - Glossário
+    - Recursos extras
+    - Bibliografia
+    
+    TOTAL ESTIMADO: {config['pages'] * 400} palavras
+    """
+    
+    try:
+        st.info("📋 Gerando estrutura detalhada do ebook...")
+        outline = llm(outline_prompt)
+        st.success("✅ Estrutura criada!")
+        
+        # Mostrar estrutura para o usuário
+        with st.expander("📋 Estrutura do Ebook", expanded=False):
+            st.markdown(outline)
+        
+    except Exception as e:
+        st.error(f"Erro na geração da estrutura: {str(e)}")
+        return None
+    
+    # 2. Gerar introdução
+    intro_prompt = f"""
+    Com base na seguinte estrutura de ebook:
+    
+    {outline}
+    
+    Escreva uma INTRODUÇÃO COMPLETA E DETALHADA de pelo menos 800 palavras.
+    
+    A introdução deve:
+    1. Apresentar o tema de forma cativante
+    2. Explicar a importância e relevância do assunto
+    3. Apresentar os benefícios que o leitor obterá
+    4. Dar uma visão geral do que será abordado
+    5. Estabelecer conexão com o público-alvo: {form_data['audience']}
+    6. Usar tom {form_data['tone']} e estilo {config['style']}
+    
+    Inclua pelo menos 3 parágrafos substanciais com exemplos ou estatísticas quando relevante.
+    """
+    
+    try:
+        st.info("✍️ Escrevendo introdução...")
+        introduction = llm(intro_prompt)
+        st.success("✅ Introdução concluída!")
+    except Exception as e:
+        st.error(f"Erro na introdução: {str(e)}")
+        introduction = f"# Introdução\n\nBem-vindo ao nosso ebook sobre {topic}..."
+    
+    # 3. Gerar capítulos principais (em lotes)
+    chapters = []
+    chapter_count = min(8, max(6, config['pages'] // 8))  # Entre 6-8 capítulos
+    
+    for i in range(1, chapter_count + 1):
+        chapter_prompt = f"""
+        Com base na estrutura do ebook sobre "{topic}":
+        
+        {outline}
+        
+        Escreva o CAPÍTULO {i} COMPLETO com pelo menos 1200-1500 palavras.
+        
+        REQUISITOS:
+        1. Siga a estrutura definida no índice
+        2. Desenvolva todos os subtópicos indicados
+        3. Use estilo {config['style']} e tom {form_data['tone']}
+        4. Inclua exemplos práticos e detalhados
+        5. Adicione pelo menos uma caixa de destaque ou dica
+        6. Termine com um resumo do capítulo
+        7. Foque no público: {form_data['audience']}
+        8. Nível: {form_data['difficulty']}
+        
+        {f"PONTOS IMPORTANTES A INCLUIR: {form_data['key_points']}" if form_data['key_points'] else ""}
+        {f"REQUISITOS ESPECIAIS: {form_data['special_requirements']}" if form_data['special_requirements'] else ""}
+        
+        ESTRUTURA DO CAPÍTULO:
+        # Capítulo {i}: [Título]
+        
+        ## Introdução do Capítulo
+        [2-3 parágrafos introdutórios]
+        
+        ## [Subtópico 1]
+        [Desenvolvimento detalhado com exemplos]
+        
+        ## [Subtópico 2]
+        [Desenvolvimento detalhado com exemplos]
+        
+        ## [Subtópico 3]
+        [Desenvolvimento detalhado com exemplos]
+        
+        ## 💡 Dica Especial / Caixa de Destaque
+        [Conteúdo relevante e prático]
+        
+        ## Exemplo Prático
+        [Caso real ou simulado detalhado]
+        
+        ## Resumo do Capítulo
+        [Pontos principais em 2-3 parágrafos]
+        
+        ## ✏️ Exercício / Reflexão
+        [Atividade prática para o leitor]
+        """
+        
+        try:
+            st.info(f"✍️ Escrevendo Capítulo {i}...")
+            progress = st.progress((i-1) / chapter_count)
+            
+            chapter = llm(chapter_prompt)
+            chapters.append(chapter)
+            
+            progress.progress(i / chapter_count)
+            st.success(f"✅ Capítulo {i} concluído!")
+            
+            # Pequena pausa para evitar rate limiting
+            time.sleep(2)
+            
+        except Exception as e:
+            st.error(f"Erro no Capítulo {i}: {str(e)}")
+            chapters.append(f"# Capítulo {i}: Em Desenvolvimento\n\nEste capítulo será desenvolvido...")
+    
+    # 4. Gerar conclusão
+    conclusion_prompt = f"""
+    Com base no ebook completo sobre "{topic}" com a seguinte estrutura:
+    
+    {outline}
+    
+    E considerando os capítulos desenvolvidos, escreva uma CONCLUSÃO COMPLETA de pelo menos 600-800 palavras.
+    
+    A conclusão deve:
+    1. Resumir os principais pontos abordados no ebook
+    2. Reforçar os benefícios e aprendizados
+    3. Motivar o leitor à ação
+    4. Sugerir próximos passos práticos
+    5. Incluir recursos adicionais para aprofundamento
+    6. Terminar com uma mensagem inspiradora
+    7. Manter tom {form_data['tone']} e estilo {config['style']}
+    
+    ESTRUTURA:
+    # Conclusão
+    
+    ## Recapitulando Nossa Jornada
+    [Resumo dos principais pontos]
+    
+    ## Seus Próximos Passos
+    [Ações práticas e recomendações]
+    
+    ## Recursos Adicionais
+    [Sugestões de livros, sites, cursos]
+    
+    ## Palavras Finais
+    [Mensagem motivacional e inspiradora]
+    """
+    
+    try:
+        st.info("🎯 Finalizando com conclusão...")
+        conclusion = llm(conclusion_prompt)
+        st.success("✅ Conclusão concluída!")
+    except Exception as e:
+        st.error(f"Erro na conclusão: {str(e)}")
+        conclusion = f"# Conclusão\n\nEste ebook sobre {topic} apresentou conceitos fundamentais..."
+    
+    # 5. Montar ebook completo
+    full_ebook = f"""# {topic}
+*Um Guia Completo e Prático*
+
+---
+
+## Sobre Este Ebook
+
+Este ebook foi desenvolvido especificamente para {form_data['audience']}, abordando {topic} de forma {form_data['difficulty'].lower()} e com foco {form_data['focus'].lower()}.
+
+**Páginas:** {config['pages']}
+**Estilo:** {config['style']}
+**Tom:** {form_data['tone']}
+
+---
+
+{introduction}
+
+---
+
+"""
+    
+    # Adicionar todos os capítulos
+    for i, chapter in enumerate(chapters, 1):
+        full_ebook += f"{chapter}\n\n---\n\n"
+    
+    # Adicionar conclusão
+    full_ebook += f"{conclusion}\n\n---\n\n"
+    
+    # Adicionar apêndices se solicitado
+    if config.get('include_exercises') or config.get('include_images'):
+        appendix_prompt = f"""
+        Crie apêndices complementares para o ebook sobre "{topic}":
+        
+        1. **Glossário:** 15-20 termos importantes com definições
+        2. **Recursos Adicionais:** Lista de livros, sites, ferramentas recomendadas
+        3. **Templates/Checklists:** Materiais práticos para aplicação
+        4. {"**Sugestões de Imagens:** Descrições de imagens relevantes para cada capítulo" if config.get('include_images') else ""}
+        5. {"**Exercícios Extras:** Atividades complementares de aprofundamento" if config.get('include_exercises') else ""}
+        
+        Mantenha o mesmo tom {form_data['tone']} e seja prático e útil.
+        """
+        
+        try:
+            st.info("📚 Adicionando apêndices e recursos extras...")
+            appendices = llm(appendix_prompt)
+            full_ebook += f"{appendices}\n\n"
+            st.success("✅ Apêndices adicionados!")
+        except Exception as e:
+            st.warning(f"Apêndices não puderam ser gerados: {str(e)}")
+    
+    # Adicionar footer
+    full_ebook += f"""---
+
+## Sobre o Autor
+
+Este ebook foi gerado com inteligência artificial para fornecer conteúdo educativo e prático sobre {topic}.
+
+**Data de criação:** {datetime.now().strftime('%d/%m/%Y')}
+**Versão:** 1.0
+**Palavras:** ~{len(full_ebook.split()):,}
+
+---
+
+*Obrigado por ler este ebook! Esperamos que o conteúdo seja útil em sua jornada de aprendizado.*
+"""
+    
+    return full_ebook
+
 def create_example_section():
     """Cria seção com exemplos e dicas"""
     st.markdown("""
@@ -591,278 +868,23 @@ def create_tips_section():
         </div>
         """, unsafe_allow_html=True)
 
-def get_default_params():
-    """Retorna parâmetros padrão para evitar campos faltantes"""
-    return {
-        "topic": "Tópico não especificado",
-        "style": "Profissional",
-        "pages": 25,
-        "length": 25,  # Alias para pages
-        "target_audience": "Adultos interessados no tema",
-        "depth_level": "Intermediário com exemplos práticos",
-        "main_objective": "Educar sobre o tema de forma clara e prática",
-        "audience": "Adultos interessados no tema",  # Alias para target_audience
-        "difficulty": "Intermediário",
-        "tone": "Conversacional",
-        "focus": "Balanceado",
-        "key_points": "",
-        "special_requirements": "",
-        "language": "🇧🇷 Português",
-        "include_images": True,
-        "include_exercises": True,
-        "book_type": "📓 Educacional"
-    }
-
-def validate_and_prepare_params(form_data, config):
-    """Valida e prepara parâmetros com sistema robusto de fallback"""
-    
-    # Começar com parâmetros padrão
-    params = get_default_params()
-    
-    # Mapear tipos de livro para objetivos principais
-    objective_mapping = {
-        "📈 Negócios": "Ensinar estratégias e práticas de negócios eficazes para aplicação prática",
-        "🛠️ Técnico": "Explicar conceitos técnicos de forma clara, didática e aplicável",
-        "💡 Autoajuda": "Inspirar e guiar o desenvolvimento pessoal através de técnicas comprovadas",
-        "🎓 Educacional": "Educar e informar sobre o tema de forma didática e estruturada",
-        "📝 Narrativo": "Contar uma história envolvente e significativa que eduque e inspire"
-    }
-    
-    # Mapear dificuldade para depth_level
-    depth_mapping = {
-        "Iniciante": "Básico e acessível, com explicações detalhadas de conceitos fundamentais",
-        "Intermediário": "Intermediário com exemplos práticos e aplicações reais",
-        "Avançado": "Avançado com análises profundas e casos complexos",
-        "Especialista": "Especialista com insights técnicos e abordagem científica"
-    }
-    
-    # Mapear idioma
-    language_mapping = {
-        "🇧🇷 Português": "português brasileiro",
-        "🇺🇸 Inglês": "inglês",
-        "🇪🇸 Espanhol": "espanhol",
-        "🇫🇷 Francês": "francês"
-    }
-    
-    try:
-        # Atualizar com dados do formulário, usando fallbacks seguros
-        if form_data.get("topic") and form_data["topic"].strip():
-            params["topic"] = form_data["topic"].strip()
-        
-        if form_data.get("audience") and form_data["audience"].strip():
-            params["target_audience"] = form_data["audience"].strip()
-            params["audience"] = form_data["audience"].strip()
-        
-        if form_data.get("difficulty"):
-            params["difficulty"] = form_data["difficulty"]
-            params["depth_level"] = depth_mapping.get(
-                form_data["difficulty"], 
-                "Intermediário com exemplos práticos"
-            )
-        
-        if form_data.get("tone"):
-            params["tone"] = form_data["tone"]
-        
-        if form_data.get("focus"):
-            params["focus"] = form_data["focus"]
-        
-        if form_data.get("key_points") and form_data["key_points"].strip():
-            params["key_points"] = form_data["key_points"].strip()
-        
-        if form_data.get("special_requirements") and form_data["special_requirements"].strip():
-            params["special_requirements"] = form_data["special_requirements"].strip()
-        
-        # Atualizar com configurações
-        if config.get("style"):
-            params["style"] = config["style"]
-        
-        if config.get("pages"):
-            params["pages"] = config["pages"]
-            params["length"] = config["pages"]  # Alias
-        
-        if config.get("language"):
-            params["language"] = language_mapping.get(
-                config["language"], 
-                "português brasileiro"
-            )
-        
-        if config.get("book_type"):
-            params["book_type"] = config["book_type"]
-            params["main_objective"] = objective_mapping.get(
-                config["book_type"], 
-                "Educar sobre o tema de forma clara e prática"
-            )
-        
-        # Parâmetros booleanos
-        params["include_images"] = config.get("include_images", True)
-        params["include_exercises"] = config.get("include_exercises", True)
-        
-        # Log dos parâmetros para debug
-        st.write("🔍 **Parâmetros preparados:**")
-        debug_params = {k: v for k, v in params.items() if k in [
-            "topic", "style", "pages", "target_audience", "depth_level", 
-            "main_objective", "difficulty", "tone", "focus"
-        ]}
-        st.json(debug_params)
-        
-        return params
-        
-    except Exception as e:
-        st.error(f"⚠️ Erro na preparação dos parâmetros: {str(e)}")
-        st.error("📋 Usando parâmetros padrão...")
-        return params
-
-def get_required_chain_params():
-    """Retorna os parâmetros essenciais que as chains precisam"""
-    return {
-        "outline_required": [
-            "topic", "style", "length", "target_audience", 
-            "depth_level", "main_objective"
-        ],
-        "writing_required": [
-            "outline", "topic", "style", "target_audience", 
-            "depth_level", "main_objective"
-        ]
-    }
-
-def create_ebook_chain(llm):
-    """Cria a cadeia completa de geração de ebooks com validação robusta"""
-    
-    try:
-        outline_chain = create_outline_chain(llm)
-        writing_chain = create_writing_chain(llm)
-    except Exception as e:
-        st.error(f"❌ Erro ao inicializar chains: {str(e)}")
-        raise e
-    
-    def combined_chain(**params):
-        """Chain combinada com tratamento robusto de erros"""
-        
-        # Obter parâmetros obrigatórios
-        required_params = get_required_chain_params()
-        
-        # Preparar parâmetros mínimos para outline
-        outline_params = {}
-        
-        for param in required_params["outline_required"]:
-            if param in params and params[param] is not None:
-                outline_params[param] = params[param]
-            else:
-                # Usar defaults se parâmetro não existir
-                defaults = get_default_params()
-                if param in defaults:
-                    outline_params[param] = defaults[param]
-                    st.warning(f"⚠️ Usando valor padrão para '{param}': {defaults[param]}")
-        
-        # Log dos parâmetros do outline
-        st.write("📋 **Parâmetros para geração da estrutura:**")
-        st.json({k: str(v)[:100] + "..." if len(str(v)) > 100 else v 
-                for k, v in outline_params.items()})
-        
-        # Gerar outline com tratamento de erro
-        try:
-            st.info("🔍 Gerando estrutura do ebook...")
-            outline = outline_chain.run(**outline_params)
-            st.success("✅ Estrutura gerada com sucesso!")
-            
-        except Exception as e:
-            st.error(f"❌ Erro na geração da estrutura: {str(e)}")
-            
-            # Fallback: tentar com parâmetros mínimos
-            minimal_params = {
-                "topic": outline_params.get("topic", "Tópico Geral"),
-                "style": outline_params.get("style", "Profissional"),
-                "length": outline_params.get("length", 25)
-            }
-            
-            st.warning("🔄 Tentando com parâmetros mínimos...")
-            try:
-                outline = outline_chain.run(**minimal_params)
-                st.success("✅ Estrutura gerada com parâmetros simplificados!")
-            except Exception as e2:
-                st.error(f"❌ Falha crítica na geração da estrutura: {str(e2)}")
-                return f"Erro na geração do ebook: {str(e2)}"
-        
-        # Preparar parâmetros para escrita
-        writing_params = {
-            "outline": outline,
-            "topic": params.get("topic", "Tópico não especificado"),
-            "style": params.get("style", "Profissional"),
-            "target_audience": params.get("target_audience", "Adultos interessados no tema"),
-            "depth_level": params.get("depth_level", "Intermediário com exemplos práticos"),
-            "main_objective": params.get("main_objective", "Educar sobre o tema de forma clara")
-        }
-        
-        # Adicionar parâmetros opcionais se existirem
-        optional_params = ["tone", "focus", "key_points", "special_requirements", 
-                          "language", "include_images", "include_exercises"]
-        
-        for param in optional_params:
-            if param in params and params[param] is not None and str(params[param]).strip():
-                writing_params[param] = params[param]
-        
-        # Log dos parâmetros de escrita
-        st.write("✍️ **Parâmetros para geração do conteúdo:**")
-        st.json({k: str(v)[:100] + "..." if len(str(v)) > 100 else v 
-                for k, v in writing_params.items()})
-        
-        # Gerar conteúdo com tratamento de erro
-        try:
-            st.info("✍️ Gerando conteúdo do ebook...")
-            ebook = writing_chain.run(**writing_params)
-            st.success("✅ Ebook gerado com sucesso!")
-            return ebook
-            
-        except Exception as e:
-            st.error(f"❌ Erro na geração do conteúdo: {str(e)}")
-            
-            # Fallback: tentar com parâmetros mínimos
-            minimal_writing_params = {
-                "outline": outline,
-                "topic": writing_params["topic"],
-                "style": writing_params["style"]
-            }
-            
-            st.warning("🔄 Tentando geração simplificada...")
-            try:
-                ebook = writing_chain.run(**minimal_writing_params)
-                st.success("✅ Conteúdo gerado com parâmetros simplificados!")
-                return ebook
-            except Exception as e2:
-                st.error(f"❌ Falha crítica na geração do conteúdo: {str(e2)}")
-                return f"Erro na geração do ebook: {str(e2)}"
-    
-    return combined_chain
-
-def display_generation_progress():
+def display_generation_progress(total_steps):
     """Exibe progresso da geração com animação"""
     progress_steps = [
         ("🔍", "Analisando o tópico..."),
-        ("📋", "Criando estrutura do ebook..."),
-        ("✍️", "Gerando conteúdo dos capítulos..."),
-        ("🎨", "Formatando e organizando..."),
-        ("📄", "Finalizando o documento..."),
+        ("📋", "Criando estrutura detalhada..."),
+        ("📝", "Escrevendo introdução..."),
+        ("✍️", "Gerando capítulos principais..."),
+        ("🎯", "Desenvolvendo conclusão..."),
+        ("📚", "Adicionando apêndices..."),
+        ("🎨", "Formatando documento..."),
         ("✅", "Ebook concluído!")
     ]
     
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    for i, (icon, message) in enumerate(progress_steps):
-        progress = (i + 1) / len(progress_steps)
-        progress_bar.progress(progress)
-        status_text.markdown(f"""
-        <div style="text-align: center; padding: 10px;">
-            <span style="font-size: 2em;">{icon}</span>
-            <p style="margin: 10px 0; color: #667eea; font-weight: 600;">{message}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Simula tempo de processamento
-        import time
-        time.sleep(1)
-    
-    return progress_bar, status_text
+    return progress_bar, status_text, progress_steps
 
 def display_results(ebook_content, config, form_data):
     """Exibe os resultados da geração"""
@@ -929,36 +951,53 @@ def display_results(ebook_content, config, form_data):
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            # Gerar arquivo para download
+            # Preparar arquivo para download
             try:
-                ebook_path = save_ebook(
-                    content=ebook_content,
-                    title=form_data["topic"][:50],
-                    format=config["format"].lower().split()[1]
-                )
-                
-                with open(ebook_path, "rb") as f:
-                    file_data = f.read()
-                
                 filename = f"ebook_{form_data['topic'][:30].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}"
                 file_extension = config["format"].lower().split()[1]
                 
-                mime_types = {
-                    "pdf": "application/pdf",
-                    "markdown": "text/markdown",
-                    "html": "text/html",
-                    "epub": "application/epub+zip"
-                }
+                # Diferentes tipos de arquivo
+                if file_extension == "markdown":
+                    file_data = ebook_content.encode('utf-8')
+                    mime_type = "text/markdown"
+                elif file_extension == "html":
+                    html_content = f"""
+                    <!DOCTYPE html>
+                    <html lang="pt-BR">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>{form_data['topic']}</title>
+                        <style>
+                            body {{ font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }}
+                            h1, h2, h3 {{ color: #333; }}
+                            h1 {{ border-bottom: 3px solid #667eea; padding-bottom: 10px; }}
+                            h2 {{ border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
+                            .highlight {{ background: #f0f8ff; padding: 15px; border-left: 4px solid #667eea; margin: 20px 0; }}
+                            code {{ background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }}
+                            blockquote {{ background: #f9f9f9; border-left: 4px solid #ddd; margin: 0; padding: 10px 20px; }}
+                        </style>
+                    </head>
+                    <body>
+                    {ebook_content.replace('#', '<h1>').replace('##', '<h2>').replace('###', '<h3>')}
+                    </body>
+                    </html>
+                    """
+                    file_data = html_content.encode('utf-8')
+                    mime_type = "text/html"
+                else:
+                    file_data = ebook_content.encode('utf-8')
+                    mime_type = "text/plain"
                 
                 st.download_button(
                     label=f"📥 Baixar Ebook ({config['format']})",
                     data=file_data,
                     file_name=f"{filename}.{file_extension}",
-                    mime=mime_types.get(file_extension, "text/plain"),
+                    mime=mime_type,
                     use_container_width=True
                 )
                 
-                st.success(f"✅ Arquivo salvo como: {filename}.{file_extension}")
+                st.success(f"✅ Pronto para download: {filename}.{file_extension}")
                 
             except Exception as e:
                 st.error(f"❌ Erro ao preparar download: {str(e)}")
@@ -966,7 +1005,7 @@ def display_results(ebook_content, config, form_data):
                 # Fallback: oferecer download direto do texto
                 st.download_button(
                     label="📝 Baixar como Texto",
-                    data=ebook_content,
+                    data=ebook_content.encode('utf-8'),
                     file_name=f"ebook_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
                     mime="text/plain",
                     use_container_width=True
@@ -980,6 +1019,12 @@ def display_results(ebook_content, config, form_data):
             • **Markdown**: Editável 
             • **HTML**: Web-friendly
             • **EPUB**: E-readers
+            
+            📊 **Qualidade:**
+            ✅ Estrutura profissional
+            ✅ Conteúdo extenso
+            ✅ Formatação adequada
+            ✅ Pronto para publicação
             """)
     
     with tab3:
@@ -997,12 +1042,28 @@ def display_results(ebook_content, config, form_data):
             "💾 Formato": config["format"],
             "📄 Páginas": config["pages"],
             "📝 Palavras": f"{word_count:,}",
+            "📖 Caracteres": f"{char_count:,}",
             "⏱️ Tempo de Leitura": f"{estimated_reading_time} minutos",
             "📅 Gerado em": datetime.now().strftime("%d/%m/%Y às %H:%M")
         }
         
         for key, value in details.items():
             st.markdown(f"**{key}:** {value}")
+        
+        # Mostrar estrutura se solicitado
+        if st.button("📋 Ver Análise de Estrutura"):
+            chapters = ebook_content.count("# Capítulo")
+            sections = ebook_content.count("## ")
+            subsections = ebook_content.count("### ")
+            
+            st.markdown(f"""
+            **📊 Análise Estrutural:**
+            - Capítulos identificados: {chapters}
+            - Seções principais: {sections}
+            - Subseções: {subsections}
+            - Densidade: {word_count // max(1, chapters)} palavras/capítulo
+            - Profundidade: {'Alta' if subsections > sections else 'Média' if sections > 5 else 'Básica'}
+            """)
 
 def main():
     """Função principal da aplicação"""
@@ -1058,54 +1119,43 @@ def main():
                 with st.container():
                     st.markdown("""
                     <div class="glass-card fade-in">
-                        <h3 style="color: #667eea; text-align: center;">🚀 Gerando seu Ebook...</h3>
+                        <h3 style="color: #667eea; text-align: center;">🚀 Gerando seu Ebook Completo...</h3>
+                        <p style="text-align: center; color: #8b92a5;">Este processo pode levar alguns minutos para garantir qualidade máxima</p>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Preparar e validar parâmetros ANTES de inicializar chains
-                    with st.expander("🔧 Diagnóstico de Parâmetros", expanded=False):
-                        generation_params = validate_and_prepare_params(form_data, config)
-                    
-                    # Mostrar progresso
-                    progress_container = st.empty()
-                    
-                    with progress_container.container():
-                        progress_bar, status_text = display_generation_progress()
-                    
-                    # Configurar LLM com tratamento de erro
+                    # Configurar LLM com parâmetros para conteúdo extenso
                     try:
                         llm = OpenAI(
                             openai_api_key=config["api_key"],
                             temperature=0.7,
-                            max_tokens=2000,  # Reduzido para evitar limite
-                            request_timeout=120  # 2 minutos de timeout
+                            max_tokens=4000,  # Aumentado para mais conteúdo
+                            request_timeout=180  # 3 minutos de timeout
                         )
-                        st.success("✅ LLM configurado com sucesso!")
+                        st.success("✅ Sistema de IA configurado!")
                     except Exception as e:
                         st.error(f"❌ Erro na configuração da API OpenAI: {str(e)}")
                         st.error("🔑 Verifique se sua API Key está correta e válida")
                         st.stop()
                     
-                    # Criar cadeia de geração com tratamento de erro
+                    # Gerar ebook usando o novo sistema
                     try:
-                        ebook_chain = create_ebook_chain(llm)
-                        st.success("✅ Sistema de geração inicializado!")
-                    except Exception as e:
-                        st.error(f"❌ Erro na inicialização do sistema: {str(e)}")
-                        st.exception(e)
-                        st.stop()
-                    
-                    # Gerar ebook com parâmetros validados
-                    try:
-                        ebook_content = ebook_chain(**generation_params)
+                        ebook_content = generate_comprehensive_ebook(
+                            llm=llm,
+                            topic=form_data["topic"],
+                            config=config,
+                            form_data=form_data
+                        )
                         
                         # Verificar se o conteúdo foi gerado com sucesso
-                        if not ebook_content or len(ebook_content.strip()) < 100:
-                            st.error("❌ Conteúdo gerado é muito curto ou vazio")
-                            st.error("📝 Tente novamente com uma descrição mais específica do tópico")
+                        if not ebook_content or len(ebook_content.strip()) < 1000:
+                            st.error("❌ Conteúdo gerado é muito curto")
+                            st.error("📝 Tente novamente ou reduza o número de páginas")
                             st.stop()
                         
-                        st.success("🎉 Ebook gerado com sucesso!")
+                        # Mostrar estatísticas finais
+                        final_word_count = len(ebook_content.split())
+                        st.success(f"🎉 Ebook gerado com sucesso! ({final_word_count:,} palavras)")
                         
                     except Exception as e:
                         st.error(f"❌ Erro durante a geração do ebook: {str(e)}")
@@ -1120,9 +1170,6 @@ def main():
                         st.error("• Simplifique a descrição do tópico")
                         st.error("• Verifique se sua API Key tem créditos suficientes")
                         st.stop()
-                    
-                    # Limpar progresso
-                    progress_container.empty()
                     
                     # Exibir resultados
                     display_results(ebook_content, config, form_data)
@@ -1163,8 +1210,12 @@ def main():
         <div class="glass-card fade-in">
             <h3 style="color: #667eea; margin-bottom: 20px;">🎁 Recursos Inclusos</h3>
             <div class="feature-card">
-                <h4>✨ Conteúdo Profissional</h4>
-                <p style="color: #8b92a5;">Estrutura completa com introdução, capítulos organizados e conclusão impactante.</p>
+                <h4>✨ Conteúdo Extenso</h4>
+                <p style="color: #8b92a5;">Ebooks de 10-200 páginas com conteúdo rico e detalhado.</p>
+            </div>
+            <div class="feature-card">
+                <h4>📋 Estrutura Profissional</h4>
+                <p style="color: #8b92a5;">Introdução, múltiplos capítulos, conclusão e apêndices.</p>
             </div>
             <div class="feature-card">
                 <h4>🖼️ Sugestões Visuais</h4>
@@ -1176,7 +1227,26 @@ def main():
             </div>
             <div class="feature-card">
                 <h4>📄 Múltiplos Formatos</h4>
-                <p style="color: #8b92a5;">PDF, Markdown, HTML e EPUB para máxima compatibilidade.</p>
+                <p style="color: #8b92a5;">Markdown, HTML e texto puro para máxima compatibilidade.</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Seção de performance
+        st.markdown("""
+        <div class="glass-card fade-in">
+            <h3 style="color: #667eea; margin-bottom: 20px;">⚡ Performance Melhorada</h3>
+            <div class="feature-card">
+                <h4>🚀 Sistema Otimizado</h4>
+                <p style="color: #8b92a5;">Geração em múltiplas etapas para conteúdo mais extenso e detalhado.</p>
+            </div>
+            <div class="feature-card">
+                <h4>📊 Controle de Qualidade</h4>
+                <p style="color: #8b92a5;">Validação automática de estrutura e tamanho do conteúdo.</p>
+            </div>
+            <div class="feature-card">
+                <h4>🔧 Recuperação de Erros</h4>
+                <p style="color: #8b92a5;">Sistema robusto que continua funcionando mesmo com falhas parciais.</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1207,7 +1277,8 @@ def main():
     st.markdown("""
     <div style="text-align: center; padding: 20px 0; color: #8b92a5;">
         <p>📚 <strong>EBook Generator Pro</strong> - Powered by OpenAI GPT</p>
-        <p style="font-size: 0.8em;">Versão 2.0 | © 2024 | Feito com ❤️ para criadores de conteúdo</p>
+        <p style="font-size: 0.8em;">Versão 2.1 | © 2024 | Feito com ❤️ para criadores de conteúdo</p>
+        <p style="font-size: 0.7em;">✨ Agora com geração de conteúdo extenso e detalhado!</p>
     </div>
     """, unsafe_allow_html=True)
 
