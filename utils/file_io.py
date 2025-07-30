@@ -5,7 +5,7 @@ from io import BytesIO
 from base64 import b64encode
 
 def save_ebook(content, title, format="markdown"):
-    """Salva o ebook no formato especificado com tratamento de erros"""
+    """Salvaa o ebook no formato especificado com tratamento de erros"""
     
     # Criar diretório de saída
     os.makedirs("output", exist_ok=True)

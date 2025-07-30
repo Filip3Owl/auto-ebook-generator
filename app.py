@@ -8,239 +8,308 @@ import json
 from datetime import datetime
 import traceback
 import time
+from io import BytesIO
+import markdown
 
 # Configura paths para imports
 sys.path.append(str(Path(__file__).parent))
 
-# Importações locais
-from core.prompts import EBOOK_PROMPTS
-from agents.outline import create_outline_chain
-from agents.writer import create_writing_chain
-from utils.file_io import save_ebook
-from utils.config import load_config
+# Importações locais (comentadas pois não temos os arquivos)
+# from core.prompts import EBOOK_PROMPTS
+# from agents.outline import create_outline_chain
+# from agents.writer import create_writing_chain
+# from utils.file_io import save_ebook
+# from utils.config import load_config
+
+def load_config():
+    """Configuração básica (substitui o import)"""
+    pass
 
 # Configuração inicial
 load_config()
 
-def apply_dark_theme():
+def apply_modern_theme():
     """
-    Aplica tema escuro personalizado para fundo preto
+    Aplica tema moderno com melhor contraste e visibilidade
     """
     st.markdown("""
     <style>
         /* Reset e configurações globais */
         .stApp {
-            background-color: #0e1117;
-            color: #ffffff;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #f8fafc;
         }
         
         /* Header personalizado */
         .main-header {
             font-size: 3.5em;
             font-weight: 800;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #06b6d4 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
             text-align: center;
-            margin: 20px 0;
-            text-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+            margin: 30px 0;
+            text-shadow: 0 0 40px rgba(59, 130, 246, 0.6);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+        
+        @keyframes glow {
+            from { filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.4)); }
+            to { filter: drop-shadow(0 0 30px rgba(139, 92, 246, 0.6)); }
         }
         
         .sub-header {
-            font-size: 1.3em;
-            color: #8b92a5;
+            font-size: 1.4em;
+            color: #cbd5e1;
             text-align: center;
             margin-bottom: 40px;
             font-weight: 300;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         
         /* Sidebar styling */
-        .css-1d391kg {
-            background-color: #1a1d29;
-            border-right: 2px solid #2d3748;
+        .css-1d391kg, .css-6qob1r {
+            background: linear-gradient(180deg, #1e293b 0%, #334155 100%);
+            border-right: 2px solid #475569;
         }
         
         .sidebar .sidebar-content {
-            background-color: #1a1d29;
-            color: #ffffff;
+            background: linear-gradient(180deg, #1e293b 0%, #334155 100%);
+            color: #f8fafc;
         }
         
-        /* Cards e containers */
+        /* Cards e containers com melhor contraste */
         .custom-card {
-            background: linear-gradient(145deg, #1e2139, #2d3748);
-            border-radius: 15px;
-            padding: 25px;
-            margin: 20px 0;
-            border: 1px solid #4a5568;
+            background: linear-gradient(145deg, #334155, #475569);
+            border-radius: 20px;
+            padding: 30px;
+            margin: 25px 0;
+            border: 2px solid #64748b;
             box-shadow: 
-                0 10px 30px rgba(0, 0, 0, 0.3),
+                0 20px 40px rgba(0, 0, 0, 0.4),
                 inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            color: #f8fafc;
         }
         
         .feature-card {
-            background: linear-gradient(135deg, #667eea15, #764ba215);
-            border-radius: 12px;
-            padding: 20px;
-            margin: 15px 0;
-            border: 1px solid #667eea40;
+            background: linear-gradient(135deg, #1e40af20, #7c3aed20);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+            border: 2px solid #3b82f6;
             transition: all 0.3s ease;
+            color: #f8fafc;
+            backdrop-filter: blur(10px);
         }
         
         .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
-            border-color: #667eea80;
+            transform: translateY(-8px);
+            box-shadow: 0 25px 50px rgba(59, 130, 246, 0.3);
+            border-color: #60a5fa;
+            background: linear-gradient(135deg, #1e40af30, #7c3aed30);
+        }
+        
+        .feature-card h4 {
+            color: #60a5fa;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+        
+        .feature-card p, .feature-card ul, .feature-card li {
+            color: #e2e8f0 !important;
+            line-height: 1.6;
         }
         
         /* Botões personalizados */
         .stButton > button {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white !important;
             border: none;
-            border-radius: 25px;
-            padding: 12px 30px;
-            font-weight: 600;
+            border-radius: 30px;
+            padding: 15px 35px;
+            font-weight: 700;
             font-size: 16px;
             transition: all 0.3s ease;
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         
         .stButton > button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-            background: linear-gradient(135deg, #5a6fd8, #6b42a0);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(59, 130, 246, 0.5);
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
         }
         
-        /* Form inputs */
+        /* Form inputs com melhor visibilidade */
         .stTextInput > div > div > input,
         .stTextArea > div > div > textarea,
         .stSelectbox > div > div > select {
-            background-color: #2d3748;
-            color: #ffffff;
-            border: 2px solid #4a5568;
-            border-radius: 10px;
-            padding: 12px;
+            background-color: #475569 !important;
+            color: #f8fafc !important;
+            border: 2px solid #64748b !important;
+            border-radius: 12px !important;
+            padding: 15px !important;
             transition: all 0.3s ease;
+            font-size: 16px !important;
         }
         
         .stTextInput > div > div > input:focus,
         .stTextArea > div > div > textarea:focus,
         .stSelectbox > div > div > select:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+            background-color: #334155 !important;
+        }
+        
+        .stTextInput label, .stTextArea label, .stSelectbox label {
+            color: #e2e8f0 !important;
+            font-weight: 600 !important;
+            margin-bottom: 8px !important;
+        }
+        
+        /* Placeholders */
+        .stTextInput input::placeholder,
+        .stTextArea textarea::placeholder {
+            color: #94a3b8 !important;
+            opacity: 1;
         }
         
         /* Progress bar */
         .stProgress > div > div > div {
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6) !important;
         }
         
-        /* Success/Error messages */
+        /* Messages com melhor contraste */
         .stSuccess {
-            background: linear-gradient(135deg, #10b981, #059669);
-            border: none;
-            border-radius: 10px;
-            color: white;
+            background: linear-gradient(135deg, #059669, #10b981) !important;
+            border: none !important;
+            border-radius: 12px !important;
+            color: white !important;
+            padding: 15px !important;
         }
         
         .stError {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-            border: none;
-            border-radius: 10px;
-            color: white;
+            background: linear-gradient(135deg, #dc2626, #ef4444) !important;
+            border: none !important;
+            border-radius: 12px !important;
+            color: white !important;
+            padding: 15px !important;
         }
         
         .stWarning {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
-            border: none;
-            border-radius: 10px;
-            color: white;
+            background: linear-gradient(135deg, #d97706, #f59e0b) !important;
+            border: none !important;
+            border-radius: 12px !important;
+            color: white !important;
+            padding: 15px !important;
         }
         
         .stInfo {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            border: none;
-            border-radius: 10px;
-            color: white;
+            background: linear-gradient(135deg, #2563eb, #3b82f6) !important;
+            border: none !important;
+            border-radius: 12px !important;
+            color: white !important;
+            padding: 15px !important;
         }
         
         /* Expander styling */
         .streamlit-expanderHeader {
-            background-color: #2d3748;
-            border-radius: 10px;
-            color: #ffffff;
-            font-weight: 600;
+            background-color: #475569 !important;
+            border-radius: 12px !important;
+            color: #f8fafc !important;
+            font-weight: 700 !important;
+            padding: 15px !important;
         }
         
         .streamlit-expanderContent {
-            background-color: #1a1d29;
-            border-radius: 0 0 10px 10px;
+            background-color: #334155 !important;
+            border-radius: 0 0 12px 12px !important;
+            color: #f8fafc !important;
         }
         
         /* Tabs styling */
         .stTabs [data-baseweb="tab-list"] {
-            gap: 8px;
+            gap: 12px;
         }
         
         .stTabs [data-baseweb="tab"] {
-            background-color: #2d3748;
-            border-radius: 10px 10px 0 0;
-            color: #8b92a5;
-            font-weight: 600;
+            background-color: #475569 !important;
+            border-radius: 12px 12px 0 0 !important;
+            color: #cbd5e1 !important;
+            font-weight: 600 !important;
+            padding: 15px 25px !important;
         }
         
         .stTabs [aria-selected="true"] {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6) !important;
+            color: white !important;
         }
         
         /* Slider customization */
         .stSlider > div > div > div > div {
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6) !important;
         }
         
         /* Radio buttons */
         .stRadio > div {
-            background-color: #2d3748;
-            border-radius: 10px;
-            padding: 15px;
+            background-color: #475569 !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            color: #f8fafc !important;
+        }
+        
+        .stRadio label {
+            color: #f8fafc !important;
+        }
+        
+        /* Checkbox */
+        .stCheckbox > label {
+            color: #f8fafc !important;
         }
         
         /* Metrics styling */
         .metric-card {
-            background: linear-gradient(145deg, #1e2139, #2d3748);
-            border-radius: 15px;
-            padding: 20px;
+            background: linear-gradient(145deg, #334155, #475569);
+            border-radius: 20px;
+            padding: 25px;
             text-align: center;
-            border: 1px solid #4a5568;
-            margin: 10px 0;
+            border: 2px solid #64748b;
+            margin: 15px 0;
+            transition: all 0.3s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(59, 130, 246, 0.2);
         }
         
         .metric-value {
-            font-size: 2.5em;
+            font-size: 2.8em;
             font-weight: bold;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
         
         .metric-label {
-            color: #8b92a5;
-            font-size: 0.9em;
-            margin-top: 5px;
+            color: #cbd5e1;
+            font-size: 1em;
+            margin-top: 8px;
+            font-weight: 600;
         }
         
         /* Animation classes */
         .fade-in {
-            animation: fadeInUp 0.8s ease-out;
+            animation: fadeInUp 1s ease-out;
         }
         
         @keyframes fadeInUp {
             from {
                 opacity: 0;
-                transform: translateY(30px);
+                transform: translateY(40px);
             }
             to {
                 opacity: 1;
@@ -248,25 +317,31 @@ def apply_dark_theme():
             }
         }
         
-        /* Glassmorphism effect */
+        /* Glassmorphism effect com melhor contraste */
         .glass-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 25px;
-            margin: 20px 0;
+            background: rgba(71, 85, 105, 0.7);
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            border: 2px solid rgba(148, 163, 184, 0.3);
+            padding: 30px;
+            margin: 25px 0;
+            color: #f8fafc;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .glass-card h3, .glass-card h4 {
+            color: #60a5fa !important;
         }
         
         /* Loading spinner */
         .custom-spinner {
-            border: 4px solid rgba(102, 126, 234, 0.3);
-            border-top: 4px solid #667eea;
+            border: 4px solid rgba(59, 130, 246, 0.3);
+            border-top: 4px solid #3b82f6;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             animation: spin 1s linear infinite;
-            margin: 20px auto;
+            margin: 30px auto;
         }
         
         @keyframes spin {
@@ -276,20 +351,49 @@ def apply_dark_theme():
         
         /* Scrollbar customization */
         ::-webkit-scrollbar {
-            width: 8px;
+            width: 12px;
         }
         
         ::-webkit-scrollbar-track {
-            background: #1a1d29;
+            background: #1e293b;
         }
         
         ::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 4px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 6px;
         }
         
         ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, #5a6fd8, #6b42a0);
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+        }
+        
+        /* Texto geral com melhor contraste */
+        p, span, div, li {
+            color: #e2e8f0;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            color: #f8fafc !important;
+        }
+        
+        /* Links */
+        a {
+            color: #60a5fa !important;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            color: #93c5fd !important;
+        }
+        
+        /* Footer styling */
+        .footer-style {
+            background: linear-gradient(135deg, #1e293b, #334155);
+            padding: 30px;
+            border-radius: 20px;
+            border: 1px solid #475569;
+            text-align: center;
+            margin-top: 40px;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -310,7 +414,7 @@ def create_sidebar():
         st.markdown("""
         <div style="text-align: center; padding: 20px 0;">
             <div style="font-size: 4em;">⚙️</div>
-            <h2 style="color: #667eea; margin: 10px 0;">Configurações</h2>
+            <h2 style="color: #60a5fa; margin: 10px 0;">Configurações</h2>
         </div>
         """, unsafe_allow_html=True)
         
@@ -380,7 +484,7 @@ def create_sidebar():
         with st.expander("💾 Formato de Saída"):
             output_format = st.radio(
                 "Escolha o formato:",
-                ["📄 PDF", "📝 Markdown", "🌐 HTML", "📊 EPUB"],
+                ["📝 Markdown", "🌐 HTML", "📄 Texto"],
                 index=0,
                 horizontal=False
             )
@@ -516,10 +620,122 @@ def generate_section_content(llm, prompt, max_retries=3, delay=5):
             else:
                 raise e
 
+def markdown_to_html(markdown_text):
+    """Converte markdown para HTML"""
+    try:
+        html = markdown.markdown(
+            markdown_text,
+            extensions=['extra', 'codehilite', 'toc']
+        )
+        
+        # Template HTML completo
+        html_template = f"""
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Ebook Gerado</title>
+            <style>
+                body {{
+                    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+                    line-height: 1.7;
+                    max-width: 900px;
+                    margin: 0 auto;
+                    padding: 40px 20px;
+                    background: #f8fafc;
+                    color: #1e293b;
+                }}
+                
+                h1 {{
+                    color: #1e40af;
+                    border-bottom: 4px solid #3b82f6;
+                    padding-bottom: 15px;
+                    margin-top: 40px;
+                    font-size: 2.5em;
+                }}
+                
+                h2 {{
+                    color: #1e40af;
+                    border-bottom: 2px solid #60a5fa;
+                    padding-bottom: 10px;
+                    margin-top: 35px;
+                    font-size: 2em;
+                }}
+                
+                h3 {{
+                    color: #1e40af;
+                    margin-top: 30px;
+                    font-size: 1.5em;
+                }}
+                
+                .highlight {{
+                    background: linear-gradient(135deg, #dbeafe, #e0f2fe);
+                    padding: 20px;
+                    border-left: 5px solid #3b82f6;
+                    margin: 25px 0;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+                }}
+                
+                code {{
+                    background: #f1f5f9;
+                    padding: 3px 6px;
+                    border-radius: 4px;
+                    font-family: 'Monaco', 'Consolas', monospace;
+                    color: #7c3aed;
+                }}
+                
+                pre {{
+                    background: #0f172a;
+                    color: #e2e8f0;
+                    padding: 20px;
+                    border-radius: 8px;
+                    overflow-x: auto;
+                }}
+                
+                blockquote {{
+                    background: #f8fafc;
+                    border-left: 4px solid #64748b;
+                    margin: 20px 0;
+                    padding: 15px 25px;
+                    font-style: italic;
+                    color: #475569;
+                }}
+                
+                ul, ol {{
+                    padding-left: 25px;
+                }}
+                
+                li {{
+                    margin-bottom: 8px;
+                }}
+                
+                .page-break {{
+                    page-break-before: always;
+                }}
+                
+                @media print {{
+                    body {{ margin: 0; padding: 20px; }}
+                    .page-break {{ page-break-before: always; }}
+                }}
+            </style>
+        </head>
+        <body>
+            {html}
+        </body>
+        </html>
+        """
+        
+        return html_template
+    except Exception as e:
+        st.error(f"Erro na conversão para HTML: {str(e)}")
+        return None
+
 def generate_comprehensive_ebook(llm, topic, config, form_data):
     """Gera um ebook completo usando múltiplas chamadas para conteúdo extenso"""
     
-    # 1. Gerar estrutura detalhada do ebook (com limite de tokens)
+    # 1. Gerar estrutura detalhada do ebook
     outline_prompt = f"""
     Crie uma estrutura DETALHADA para um ebook de {config['pages']} páginas sobre:
     TEMA: {topic}
@@ -532,7 +748,7 @@ def generate_comprehensive_ebook(llm, topic, config, form_data):
     - Tom: {form_data['tone']}
     - Foco: {form_data['focus']}
     
-    ESTRUTURA REQUERIDA (LIMITE DE 3000 TOKENS):
+    ESTRUTURA REQUERIDA:
     1. Título principal e subtítulo
     2. Índice com 6-8 capítulos principais
     3. Para cada capítulo: nome, objetivo e 2-3 subtópicos principais
@@ -575,7 +791,7 @@ def generate_comprehensive_ebook(llm, topic, config, form_data):
         st.error(f"Erro na geração da estrutura: {str(e)}")
         return None
     
-    # 2. Gerar introdução (com limite de tokens)
+    # 2. Gerar introdução
     intro_prompt = f"""
     Com base na seguinte estrutura de ebook:
     
@@ -589,8 +805,6 @@ def generate_comprehensive_ebook(llm, topic, config, form_data):
     4. Visão geral do que será abordado
     5. Conexão com o público-alvo: {form_data['audience']}
     6. Use tom {form_data['tone']} e estilo {config['style']}
-    
-    LIMITE: Máximo 3000 tokens
     """
     
     try:
@@ -627,8 +841,6 @@ def generate_comprehensive_ebook(llm, topic, config, form_data):
             5. Foco no público: {form_data['audience']}
             6. Nível: {form_data['difficulty']}
             
-            LIMITE: Máximo 3000 tokens
-            
             ESTRUTURA:
             # Capítulo {i}: [Título]
             
@@ -661,7 +873,7 @@ def generate_comprehensive_ebook(llm, topic, config, form_data):
             st.error(f"Erro no Capítulo {i}: {str(e)}")
             chapters.append(f"# Capítulo {i}: Em Desenvolvimento\n\nEste capítulo será desenvolvido...")
     
-    # 4. Gerar conclusão (com limite de tokens)
+    # 4. Gerar conclusão
     conclusion_prompt = f"""
     Com base no ebook sobre "{topic}" com esta estrutura:
     
@@ -675,8 +887,6 @@ def generate_comprehensive_ebook(llm, topic, config, form_data):
     4. Recursos adicionais
     5. Mensagem final inspiradora
     6. Mantenha tom {form_data['tone']} e estilo {config['style']}
-    
-    LIMITE: Máximo 3000 tokens
     """
     
     try:
@@ -716,7 +926,7 @@ Este ebook foi desenvolvido especificamente para {form_data['audience']}, aborda
     # Adicionar conclusão
     full_ebook += f"{conclusion}\n\n---\n\n"
     
-    # Adicionar apêndices se solicitado (em chamada separada)
+    # Adicionar apêndices se solicitado
     if config.get('include_exercises') or config.get('include_images'):
         try:
             st.info("📚 Adicionando apêndices e recursos extras...")
@@ -728,8 +938,6 @@ Este ebook foi desenvolvido especificamente para {form_data['audience']}, aborda
             2. **Recursos Adicionais:** Livros, sites recomendados
             3. {"**Sugestões de Imagens:** Descrições de imagens relevantes" if config.get('include_images') else ""}
             4. {"**Exercícios Extras:** Atividades complementares" if config.get('include_exercises') else ""}
-            
-            LIMITE: Máximo 2000 tokens
             """
             
             appendices = generate_section_content(llm, appendix_prompt)
@@ -760,7 +968,7 @@ def create_example_section():
     """Cria seção com exemplos e dicas"""
     st.markdown("""
     <div class="glass-card fade-in">
-        <h3 style="color: #667eea; margin-bottom: 20px;">💡 Exemplos de Temas Populares</h3>
+        <h3 style="color: #60a5fa; margin-bottom: 20px;">💡 Exemplos de Temas Populares</h3>
     </div>
     """, unsafe_allow_html=True)
     
@@ -820,7 +1028,7 @@ def create_tips_section():
     """Cria seção com dicas"""
     st.markdown("""
     <div class="glass-card fade-in">
-        <h3 style="color: #667eea; margin-bottom: 20px;">🎯 Dicas para Resultados Excepcionais</h3>
+        <h3 style="color: #60a5fa; margin-bottom: 20px;">🎯 Dicas para Resultados Excepcionais</h3>
     </div>
     """, unsafe_allow_html=True)
     
@@ -838,9 +1046,9 @@ def create_tips_section():
         <div class="feature-card">
             <div style="display: flex; align-items: center; margin-bottom: 10px;">
                 <span style="font-size: 1.5em; margin-right: 15px;">{icon}</span>
-                <strong style="color: #667eea;">{title}</strong>
+                <strong style="color: #60a5fa;">{title}</strong>
             </div>
-            <p style="margin: 0; color: #8b92a5;">{description}</p>
+            <p style="margin: 0; color: #e2e8f0;">{description}</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -854,7 +1062,7 @@ def display_results(ebook_content, config, form_data):
     st.markdown("""
     <div class="glass-card fade-in" style="text-align: center;">
         <h2 style="color: #10b981; margin-bottom: 20px;">🎉 Ebook Gerado com Sucesso!</h2>
-        <p style="color: #8b92a5;">Seu ebook profissional está pronto para download e visualização.</p>
+        <p style="color: #cbd5e1;">Seu ebook profissional está pronto para download e visualização.</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -911,51 +1119,40 @@ def display_results(ebook_content, config, form_data):
         with col1:
             # Preparar arquivo para download
             try:
-                filename = f"ebook_{form_data['topic'][:30].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}"
-                file_extension = config["format"].lower().split()[1]
+                # Limpar o nome do arquivo
+                safe_filename = "".join(c for c in form_data['topic'][:30] if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                filename = f"ebook_{safe_filename.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}"
                 
-                # Diferentes tipos de arquivo
-                if file_extension == "markdown":
+                # Diferentes tipos de arquivo (removido PDF problemático)
+                if config["format"] == "🌐 HTML":
+                    html_content = markdown_to_html(ebook_content)
+                    if html_content:
+                        file_data = html_content.encode('utf-8')
+                        file_ext = "html"
+                        mime_type = "text/html"
+                    else:
+                        st.error("Erro na conversão para HTML. Usando formato texto.")
+                        file_data = ebook_content.encode('utf-8')
+                        file_ext = "txt"
+                        mime_type = "text/plain"
+                elif config["format"] == "📝 Markdown":
                     file_data = ebook_content.encode('utf-8')
+                    file_ext = "md"
                     mime_type = "text/markdown"
-                elif file_extension == "html":
-                    html_content = f"""
-                    <!DOCTYPE html>
-                    <html lang="pt-BR">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>{form_data['topic']}</title>
-                        <style>
-                            body {{ font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }}
-                            h1, h2, h3 {{ color: #333; }}
-                            h1 {{ border-bottom: 3px solid #667eea; padding-bottom: 10px; }}
-                            h2 {{ border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
-                            .highlight {{ background: #f0f8ff; padding: 15px; border-left: 4px solid #667eea; margin: 20px 0; }}
-                            code {{ background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }}
-                            blockquote {{ background: #f9f9f9; border-left: 4px solid #ddd; margin: 0; padding: 10px 20px; }}
-                        </style>
-                    </head>
-                    <body>
-                    {ebook_content.replace('#', '<h1>').replace('##', '<h2>').replace('###', '<h3>')}
-                    </body>
-                    </html>
-                    """
-                    file_data = html_content.encode('utf-8')
-                    mime_type = "text/html"
-                else:
+                else:  # Texto
                     file_data = ebook_content.encode('utf-8')
+                    file_ext = "txt"
                     mime_type = "text/plain"
                 
                 st.download_button(
                     label=f"📥 Baixar Ebook ({config['format']})",
                     data=file_data,
-                    file_name=f"{filename}.{file_extension}",
+                    file_name=f"{filename}.{file_ext}",
                     mime=mime_type,
                     use_container_width=True
                 )
                 
-                st.success(f"✅ Pronto para download: {filename}.{file_extension}")
+                st.success(f"✅ Pronto para download: {filename}.{file_ext}")
                 
             except Exception as e:
                 st.error(f"❌ Erro ao preparar download: {str(e)}")
@@ -973,10 +1170,9 @@ def display_results(ebook_content, config, form_data):
             st.info("""
             **📋 Formatos Disponíveis:**
             
-            • **PDF**: Melhor para leitura
-            • **Markdown**: Editável 
-            • **HTML**: Web-friendly
-            • **EPUB**: E-readers
+            • **Markdown**: Editável e compatível
+            • **HTML**: Para web e visualização
+            • **Texto**: Simples e universal
             
             📊 **Qualidade:**
             ✅ Estrutura profissional
@@ -1038,8 +1234,8 @@ def main():
         }
     )
     
-    # Aplicar tema escuro
-    apply_dark_theme()
+    # Aplicar tema moderno
+    apply_modern_theme()
     
     # Inicializar session state
     if "ebooks_generated" not in st.session_state:
@@ -1077,8 +1273,8 @@ def main():
                 with st.container():
                     st.markdown("""
                     <div class="glass-card fade-in">
-                        <h3 style="color: #667eea; text-align: center;">🚀 Gerando seu Ebook Completo...</h3>
-                        <p style="text-align: center; color: #8b92a5;">Este processo pode levar alguns minutos para garantir qualidade máxima</p>
+                        <h3 style="color: #60a5fa; text-align: center;">🚀 Gerando seu Ebook Completo...</h3>
+                        <p style="text-align: center; color: #cbd5e1;">Este processo pode levar alguns minutos para garantir qualidade máxima</p>
                     </div>
                     """, unsafe_allow_html=True)
                     
@@ -1166,45 +1362,26 @@ def main():
         # Seção de recursos
         st.markdown("""
         <div class="glass-card fade-in">
-            <h3 style="color: #667eea; margin-bottom: 20px;">🎁 Recursos Inclusos</h3>
+            <h3 style="color: #60a5fa; margin-bottom: 20px;">🎁 Recursos Inclusos</h3>
             <div class="feature-card">
                 <h4>✨ Conteúdo Extenso</h4>
-                <p style="color: #8b92a5;">Ebooks de 10-200 páginas com conteúdo rico e detalhado.</p>
+                <p style="color: #e2e8f0;">Ebooks de 10-200 páginas com conteúdo rico e detalhado.</p>
             </div>
             <div class="feature-card">
                 <h4>📋 Estrutura Profissional</h4>
-                <p style="color: #8b92a5;">Introdução, múltiplos capítulos, conclusão e apêndices.</p>
+                <p style="color: #e2e8f0;">Introdução, múltiplos capítulos, conclusão e apêndices.</p>
             </div>
             <div class="feature-card">
                 <h4>🖼️ Sugestões Visuais</h4>
-                <p style="color: #8b92a5;">Descrições de imagens e gráficos para enriquecer seu ebook.</p>
+                <p style="color: #e2e8f0;">Descrições de imagens e gráficos para enriquecer seu ebook.</p>
             </div>
             <div class="feature-card">
                 <h4>📚 Exercícios Práticos</h4>
-                <p style="color: #8b92a5;">Atividades e reflexões para engajar seus leitores.</p>
+                <p style="color: #e2e8f0;">Atividades e reflexões para engajar seus leitores.</p>
             </div>
             <div class="feature-card">
                 <h4>📄 Múltiplos Formatos</h4>
-                <p style="color: #8b92a5;">Markdown, HTML e texto puro para máxima compatibilidade.</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Seção de performance
-        st.markdown("""
-        <div class="glass-card fade-in">
-            <h3 style="color: #667eea; margin-bottom: 20px;">⚡ Performance Melhorada</h3>
-            <div class="feature-card">
-                <h4>🚀 Sistema Otimizado</h4>
-                <p style="color: #8b92a5;">Geração em múltiplas etapas para conteúdo mais extenso e detalhado.</p>
-            </div>
-            <div class="feature-card">
-                <h4>📊 Controle de Qualidade</h4>
-                <p style="color: #8b92a5;">Validação automática de estrutura e tamanho do conteúdo.</p>
-            </div>
-            <div class="feature-card">
-                <h4>🔧 Recuperação de Erros</h4>
-                <p style="color: #8b92a5;">Sistema robusto que continua funcionando mesmo com falhas parciais.</p>
+                <p style="color: #e2e8f0;">Markdown, HTML e texto puro para máxima compatibilidade.</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1212,17 +1389,17 @@ def main():
         # Seção de suporte
         st.markdown("""
         <div class="glass-card fade-in">
-            <h3 style="color: #667eea; margin-bottom: 20px;">💬 Suporte & Ajuda</h3>
+            <h3 style="color: #60a5fa; margin-bottom: 20px;">💬 Suporte & Ajuda</h3>
             <div style="text-align: center;">
-                <p style="color: #8b92a5; margin-bottom: 20px;">Precisa de ajuda ou tem sugestões?</p>
+                <p style="color: #cbd5e1; margin-bottom: 20px;">Precisa de ajuda ou tem sugestões?</p>
                 <div style="display: flex; justify-content: space-around; margin: 20px 0;">
-                    <a href="mailto:solarcubix@gmail.com" style="color: #667eea; text-decoration: none;">
+                    <a href="mailto:solarcubix@gmail.com" style="color: #60a5fa; text-decoration: none;">
                         📧 Email
                     </a>
-                    <a href="https://github.com/seu-usuario/ebook-generator" style="color: #667eea; text-decoration: none;">
+                    <a href="https://github.com/seu-usuario/ebook-generator" style="color: #60a5fa; text-decoration: none;">
                         🐱 GitHub
                     </a>
-                    <a href="https://www.linkedin.com/in/filiperangelambrosio/" style="color: #667eea; text-decoration: none;">
+                    <a href="https://www.linkedin.com/in/filiperangelambrosio/" style="color: #60a5fa; text-decoration: none;">
                         💬 Linkedin
                     </a>
                 </div>
@@ -1233,10 +1410,10 @@ def main():
     # Footer
     st.markdown("---")
     st.markdown("""
-    <div style="text-align: center; padding: 20px 0; color: #8b92a5;">
-        <p>📚 <strong>EBook Generator Pro</strong> - Powered by OpenAI GPT</p>
-        <p style="font-size: 0.8em;">Versão 2.1 | © 2024 | Feito com ❤️ para criadores de conteúdo</p>
-        <p style="font-size: 0.7em;">✨ Agora com geração de conteúdo extenso e detalhado!</p>
+    <div class="footer-style">
+        <p style="color: #f8fafc;"><strong>📚 EBook Generator Pro</strong> - Powered by OpenAI GPT</p>
+        <p style="font-size: 0.9em; color: #cbd5e1;">Versão 2.2 | © 2024 | Feito com ❤️ para criadores de conteúdo</p>
+        <p style="font-size: 0.8em; color: #94a3b8;">✨ Interface otimizada e formatos compatíveis!</p>
     </div>
     """, unsafe_allow_html=True)
 
