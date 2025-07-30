@@ -6,6 +6,7 @@ from PIL import Image
 import base64
 import json
 from datetime import datetime
+import traceback
 
 # Configura paths para imports
 sys.path.append(str(Path(__file__).parent))
@@ -590,109 +591,246 @@ def create_tips_section():
         </div>
         """, unsafe_allow_html=True)
 
+def get_default_params():
+    """Retorna parâmetros padrão para evitar campos faltantes"""
+    return {
+        "topic": "Tópico não especificado",
+        "style": "Profissional",
+        "pages": 25,
+        "length": 25,  # Alias para pages
+        "target_audience": "Adultos interessados no tema",
+        "depth_level": "Intermediário com exemplos práticos",
+        "main_objective": "Educar sobre o tema de forma clara e prática",
+        "audience": "Adultos interessados no tema",  # Alias para target_audience
+        "difficulty": "Intermediário",
+        "tone": "Conversacional",
+        "focus": "Balanceado",
+        "key_points": "",
+        "special_requirements": "",
+        "language": "🇧🇷 Português",
+        "include_images": True,
+        "include_exercises": True,
+        "book_type": "📓 Educacional"
+    }
+
 def validate_and_prepare_params(form_data, config):
-    """Valida e prepara parâmetros para evitar erros de chaves faltantes"""
+    """Valida e prepara parâmetros com sistema robusto de fallback"""
+    
+    # Começar com parâmetros padrão
+    params = get_default_params()
     
     # Mapear tipos de livro para objetivos principais
     objective_mapping = {
-        "📈 Negócios": "Ensinar estratégias e práticas de negócios eficazes",
-        "🛠️ Técnico": "Explicar conceitos técnicos de forma clara e aplicável",
-        "💡 Autoajuda": "Inspirar e guiar o desenvolvimento pessoal",
-        "🎓 Educacional": "Educar e informar sobre o tema de forma didática",
-        "📝 Narrativo": "Contar uma história envolvente e significativa"
+        "📈 Negócios": "Ensinar estratégias e práticas de negócios eficazes para aplicação prática",
+        "🛠️ Técnico": "Explicar conceitos técnicos de forma clara, didática e aplicável",
+        "💡 Autoajuda": "Inspirar e guiar o desenvolvimento pessoal através de técnicas comprovadas",
+        "🎓 Educacional": "Educar e informar sobre o tema de forma didática e estruturada",
+        "📝 Narrativo": "Contar uma história envolvente e significativa que eduque e inspire"
     }
     
     # Mapear dificuldade para depth_level
     depth_mapping = {
-        "Iniciante": "Básico e acessível",
-        "Intermediário": "Intermediário com exemplos práticos",
-        "Avançado": "Avançado com análises profundas",
-        "Especialista": "Especialista com insights técnicos"
+        "Iniciante": "Básico e acessível, com explicações detalhadas de conceitos fundamentais",
+        "Intermediário": "Intermediário com exemplos práticos e aplicações reais",
+        "Avançado": "Avançado com análises profundas e casos complexos",
+        "Especialista": "Especialista com insights técnicos e abordagem científica"
     }
     
-    # Preparar parâmetros completos
-    params = {
-        "topic": form_data["topic"],
-        "style": config["style"],
-        "pages": config["pages"],
-        "target_audience": form_data["audience"],
-        "depth_level": depth_mapping.get(form_data["difficulty"], "Intermediário com exemplos práticos"),
-        "main_objective": objective_mapping.get(config["book_type"], "Educar sobre o tema de forma clara"),
-        "tone": form_data["tone"],
-        "focus": form_data["focus"],
-        "key_points": form_data["key_points"],
-        "special_requirements": form_data["special_requirements"],
-        "language": config["language"],
-        "include_images": config["include_images"],
-        "include_exercises": config["include_exercises"],
-        "book_type": config["book_type"],
-        "difficulty": form_data["difficulty"],
-        "audience": form_data["audience"]
+    # Mapear idioma
+    language_mapping = {
+        "🇧🇷 Português": "português brasileiro",
+        "🇺🇸 Inglês": "inglês",
+        "🇪🇸 Espanhol": "espanhol",
+        "🇫🇷 Francês": "francês"
     }
     
-    return params
+    try:
+        # Atualizar com dados do formulário, usando fallbacks seguros
+        if form_data.get("topic") and form_data["topic"].strip():
+            params["topic"] = form_data["topic"].strip()
+        
+        if form_data.get("audience") and form_data["audience"].strip():
+            params["target_audience"] = form_data["audience"].strip()
+            params["audience"] = form_data["audience"].strip()
+        
+        if form_data.get("difficulty"):
+            params["difficulty"] = form_data["difficulty"]
+            params["depth_level"] = depth_mapping.get(
+                form_data["difficulty"], 
+                "Intermediário com exemplos práticos"
+            )
+        
+        if form_data.get("tone"):
+            params["tone"] = form_data["tone"]
+        
+        if form_data.get("focus"):
+            params["focus"] = form_data["focus"]
+        
+        if form_data.get("key_points") and form_data["key_points"].strip():
+            params["key_points"] = form_data["key_points"].strip()
+        
+        if form_data.get("special_requirements") and form_data["special_requirements"].strip():
+            params["special_requirements"] = form_data["special_requirements"].strip()
+        
+        # Atualizar com configurações
+        if config.get("style"):
+            params["style"] = config["style"]
+        
+        if config.get("pages"):
+            params["pages"] = config["pages"]
+            params["length"] = config["pages"]  # Alias
+        
+        if config.get("language"):
+            params["language"] = language_mapping.get(
+                config["language"], 
+                "português brasileiro"
+            )
+        
+        if config.get("book_type"):
+            params["book_type"] = config["book_type"]
+            params["main_objective"] = objective_mapping.get(
+                config["book_type"], 
+                "Educar sobre o tema de forma clara e prática"
+            )
+        
+        # Parâmetros booleanos
+        params["include_images"] = config.get("include_images", True)
+        params["include_exercises"] = config.get("include_exercises", True)
+        
+        # Log dos parâmetros para debug
+        st.write("🔍 **Parâmetros preparados:**")
+        debug_params = {k: v for k, v in params.items() if k in [
+            "topic", "style", "pages", "target_audience", "depth_level", 
+            "main_objective", "difficulty", "tone", "focus"
+        ]}
+        st.json(debug_params)
+        
+        return params
+        
+    except Exception as e:
+        st.error(f"⚠️ Erro na preparação dos parâmetros: {str(e)}")
+        st.error("📋 Usando parâmetros padrão...")
+        return params
+
+def get_required_chain_params():
+    """Retorna os parâmetros essenciais que as chains precisam"""
+    return {
+        "outline_required": [
+            "topic", "style", "length", "target_audience", 
+            "depth_level", "main_objective"
+        ],
+        "writing_required": [
+            "outline", "topic", "style", "target_audience", 
+            "depth_level", "main_objective"
+        ]
+    }
 
 def create_ebook_chain(llm):
-    """Cria a cadeia completa de geração de ebooks"""
-    outline_chain = create_outline_chain(llm)
-    writing_chain = create_writing_chain(llm)
+    """Cria a cadeia completa de geração de ebooks com validação robusta"""
+    
+    try:
+        outline_chain = create_outline_chain(llm)
+        writing_chain = create_writing_chain(llm)
+    except Exception as e:
+        st.error(f"❌ Erro ao inicializar chains: {str(e)}")
+        raise e
     
     def combined_chain(**params):
-        # Garantir que todos os parâmetros necessários estão presentes
-        required_params = {
+        """Chain combinada com tratamento robusto de erros"""
+        
+        # Obter parâmetros obrigatórios
+        required_params = get_required_chain_params()
+        
+        # Preparar parâmetros mínimos para outline
+        outline_params = {}
+        
+        for param in required_params["outline_required"]:
+            if param in params and params[param] is not None:
+                outline_params[param] = params[param]
+            else:
+                # Usar defaults se parâmetro não existir
+                defaults = get_default_params()
+                if param in defaults:
+                    outline_params[param] = defaults[param]
+                    st.warning(f"⚠️ Usando valor padrão para '{param}': {defaults[param]}")
+        
+        # Log dos parâmetros do outline
+        st.write("📋 **Parâmetros para geração da estrutura:**")
+        st.json({k: str(v)[:100] + "..." if len(str(v)) > 100 else v 
+                for k, v in outline_params.items()})
+        
+        # Gerar outline com tratamento de erro
+        try:
+            st.info("🔍 Gerando estrutura do ebook...")
+            outline = outline_chain.run(**outline_params)
+            st.success("✅ Estrutura gerada com sucesso!")
+            
+        except Exception as e:
+            st.error(f"❌ Erro na geração da estrutura: {str(e)}")
+            
+            # Fallback: tentar com parâmetros mínimos
+            minimal_params = {
+                "topic": outline_params.get("topic", "Tópico Geral"),
+                "style": outline_params.get("style", "Profissional"),
+                "length": outline_params.get("length", 25)
+            }
+            
+            st.warning("🔄 Tentando com parâmetros mínimos...")
+            try:
+                outline = outline_chain.run(**minimal_params)
+                st.success("✅ Estrutura gerada com parâmetros simplificados!")
+            except Exception as e2:
+                st.error(f"❌ Falha crítica na geração da estrutura: {str(e2)}")
+                return f"Erro na geração do ebook: {str(e2)}"
+        
+        # Preparar parâmetros para escrita
+        writing_params = {
+            "outline": outline,
             "topic": params.get("topic", "Tópico não especificado"),
             "style": params.get("style", "Profissional"),
-            "length": params.get("pages", 25),
             "target_audience": params.get("target_audience", "Adultos interessados no tema"),
             "depth_level": params.get("depth_level", "Intermediário com exemplos práticos"),
             "main_objective": params.get("main_objective", "Educar sobre o tema de forma clara")
         }
         
-        # Adicionar parâmetros extras
-        extra_params = {k: v for k, v in params.items() 
-                       if k not in ["pages"] and v is not None}
+        # Adicionar parâmetros opcionais se existirem
+        optional_params = ["tone", "focus", "key_points", "special_requirements", 
+                          "language", "include_images", "include_exercises"]
         
-        outline_params = {**required_params, **extra_params}
+        for param in optional_params:
+            if param in params and params[param] is not None and str(params[param]).strip():
+                writing_params[param] = params[param]
         
+        # Log dos parâmetros de escrita
+        st.write("✍️ **Parâmetros para geração do conteúdo:**")
+        st.json({k: str(v)[:100] + "..." if len(str(v)) > 100 else v 
+                for k, v in writing_params.items()})
+        
+        # Gerar conteúdo com tratamento de erro
         try:
-            outline = outline_chain.run(**outline_params)
-        except Exception as e:
-            st.error(f"Erro ao gerar estrutura: {str(e)}")
-            # Fallback com parâmetros mínimos
-            outline = outline_chain.run(
-                topic=params["topic"],
-                style=params["style"],
-                length=params["pages"]
-            )
-        
-        # Parâmetros para escrita
-        writing_params = {
-            "outline": outline,
-            "topic": params["topic"],
-            "style": params["style"],
-            "target_audience": params["target_audience"],
-            "depth_level": params["depth_level"],
-            "main_objective": params["main_objective"]
-        }
-        
-        # Adicionar outros parâmetros se existirem
-        for key in ["tone", "focus", "key_points", "special_requirements", 
-                   "language", "include_images", "include_exercises"]:
-            if key in params and params[key]:
-                writing_params[key] = params[key]
-        
-        try:
+            st.info("✍️ Gerando conteúdo do ebook...")
             ebook = writing_chain.run(**writing_params)
+            st.success("✅ Ebook gerado com sucesso!")
+            return ebook
+            
         except Exception as e:
-            st.error(f"Erro ao gerar conteúdo: {str(e)}")
-            # Fallback com parâmetros mínimos
-            ebook = writing_chain.run(
-                outline=outline,
-                topic=params["topic"],
-                style=params["style"]
-            )
-        
-        return ebook
+            st.error(f"❌ Erro na geração do conteúdo: {str(e)}")
+            
+            # Fallback: tentar com parâmetros mínimos
+            minimal_writing_params = {
+                "outline": outline,
+                "topic": writing_params["topic"],
+                "style": writing_params["style"]
+            }
+            
+            st.warning("🔄 Tentando geração simplificada...")
+            try:
+                ebook = writing_chain.run(**minimal_writing_params)
+                st.success("✅ Conteúdo gerado com parâmetros simplificados!")
+                return ebook
+            except Exception as e2:
+                st.error(f"❌ Falha crítica na geração do conteúdo: {str(e2)}")
+                return f"Erro na geração do ebook: {str(e2)}"
     
     return combined_chain
 
@@ -824,6 +962,15 @@ def display_results(ebook_content, config, form_data):
                 
             except Exception as e:
                 st.error(f"❌ Erro ao preparar download: {str(e)}")
+                
+                # Fallback: oferecer download direto do texto
+                st.download_button(
+                    label="📝 Baixar como Texto",
+                    data=ebook_content,
+                    file_name=f"ebook_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
         
         with col2:
             st.info("""
@@ -901,6 +1048,11 @@ def main():
                 st.error("⚠️ Por favor, configure sua OpenAI API Key na barra lateral")
                 st.stop()
             
+            # Validação básica do tópico
+            if len(form_data["topic"].strip()) < 10:
+                st.warning("⚠️ Por favor, forneça uma descrição mais detalhada do tópico (mínimo 10 caracteres)")
+                st.stop()
+            
             try:
                 # Container para o progresso
                 with st.container():
@@ -910,45 +1062,88 @@ def main():
                     </div>
                     """, unsafe_allow_html=True)
                     
+                    # Preparar e validar parâmetros ANTES de inicializar chains
+                    with st.expander("🔧 Diagnóstico de Parâmetros", expanded=False):
+                        generation_params = validate_and_prepare_params(form_data, config)
+                    
                     # Mostrar progresso
-                    progress_bar, status_text = display_generation_progress()
+                    progress_container = st.empty()
                     
-                    # Configurar LLM
-                    llm = OpenAI(
-                        openai_api_key=config["api_key"],
-                        temperature=0.7,
-                        max_tokens=4000
-                    )
+                    with progress_container.container():
+                        progress_bar, status_text = display_generation_progress()
                     
-                    # Criar cadeia de geração
-                    ebook_chain = create_ebook_chain(llm)
+                    # Configurar LLM com tratamento de erro
+                    try:
+                        llm = OpenAI(
+                            openai_api_key=config["api_key"],
+                            temperature=0.7,
+                            max_tokens=4000,
+                            request_timeout=120  # 2 minutos de timeout
+                        )
+                        st.success("✅ LLM configurado com sucesso!")
+                    except Exception as e:
+                        st.error(f"❌ Erro na configuração da API OpenAI: {str(e)}")
+                        st.error("🔑 Verifique se sua API Key está correta e válida")
+                        st.stop()
                     
-                    # Preparar parâmetros com validação completa
-                    generation_params = validate_and_prepare_params(form_data, config)
+                    # Criar cadeia de geração com tratamento de erro
+                    try:
+                        ebook_chain = create_ebook_chain(llm)
+                        st.success("✅ Sistema de geração inicializado!")
+                    except Exception as e:
+                        st.error(f"❌ Erro na inicialização do sistema: {str(e)}")
+                        st.exception(e)
+                        st.stop()
                     
                     # Gerar ebook com parâmetros validados
-                    ebook_content = ebook_chain(**generation_params)
+                    try:
+                        ebook_content = ebook_chain(**generation_params)
+                        
+                        # Verificar se o conteúdo foi gerado com sucesso
+                        if not ebook_content or len(ebook_content.strip()) < 100:
+                            st.error("❌ Conteúdo gerado é muito curto ou vazio")
+                            st.error("📝 Tente novamente com uma descrição mais específica do tópico")
+                            st.stop()
+                        
+                        st.success("🎉 Ebook gerado com sucesso!")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Erro durante a geração do ebook: {str(e)}")
+                        
+                        # Mostrar detalhes do erro em modo debug
+                        with st.expander("🔍 Detalhes do Erro (Debug)", expanded=False):
+                            st.code(traceback.format_exc())
+                        
+                        st.error("🔄 Sugestões para resolver:")
+                        st.error("• Verifique sua conexão com a internet")
+                        st.error("• Tente reduzir o número de páginas")
+                        st.error("• Simplifique a descrição do tópico")
+                        st.error("• Verifique se sua API Key tem créditos suficientes")
+                        st.stop()
                     
                     # Limpar progresso
-                    progress_bar.empty()
-                    status_text.empty()
+                    progress_container.empty()
                     
                     # Exibir resultados
                     display_results(ebook_content, config, form_data)
                     
             except Exception as e:
-                st.error(f"❌ Erro durante a geração do ebook: {str(e)}")
-                st.exception(e)
+                st.error(f"❌ Erro crítico na aplicação: {str(e)}")
+                
+                # Debug completo
+                with st.expander("🐛 Debug Completo", expanded=False):
+                    st.code(traceback.format_exc())
                 
                 # Sugestões de solução
                 st.markdown("""
                 <div class="glass-card">
                     <h4 style="color: #ef4444;">🔧 Possíveis Soluções:</h4>
                     <ul>
-                        <li>Verifique se sua API Key está correta</li>
-                        <li>Tente reduzir o tamanho do ebook</li>
-                        <li>Simplifique a descrição do tópico</li>
-                        <li>Verifique sua conexão com a internet</li>
+                        <li><strong>API Key:</strong> Verifique se sua chave OpenAI está correta e tem créditos</li>
+                        <li><strong>Conectividade:</strong> Teste sua conexão com a internet</li>
+                        <li><strong>Parâmetros:</strong> Tente simplificar as configurações do ebook</li>
+                        <li><strong>Tópico:</strong> Use uma descrição mais clara e específica</li>
+                        <li><strong>Reiniciar:</strong> Recarregue a página e tente novamente</li>
                     </ul>
                 </div>
                 """, unsafe_allow_html=True)
