@@ -1129,7 +1129,7 @@ def main():
                         llm = OpenAI(
                             openai_api_key=config["api_key"],
                             temperature=0.7,
-                            max_tokens=4000,  # Aumentado para mais conteúdo
+                            max_tokens=20000,  # Aumentado para mais conteúdo
                             request_timeout=180  # 3 minutos de timeout
                         )
                         st.success("✅ Sistema de IA configurado!")
