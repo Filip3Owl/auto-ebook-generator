@@ -6,3 +6,5 @@ python-dotenv>=1.0.0
 fpdf2>=2.7.4
 tiktoken>=0.5.1
 markdown>=3.8.2
+pdfkit>=1.0.0
+ebooklib>=0.19
