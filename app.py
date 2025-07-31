@@ -8,19 +8,11 @@ import json
 from datetime import datetime
 import traceback
 import time
+import zipfile
+import io
 
 # Configura paths para imports
 sys.path.append(str(Path(__file__).parent))
-
-# Importações locais (comentadas para evitar erros se não existirem)
-# from core.prompts import EBOOK_PROMPTS
-# from agents.outline import create_outline_chain
-# from agents.writer import create_writing_chain
-# from utils.file_io import save_ebook
-# from utils.config import load_config
-
-# Configuração inicial
-# load_config()
 
 def apply_dark_theme():
     """
@@ -355,12 +347,12 @@ def create_sidebar():
                 help="Tom e abordagem do conteúdo"
             )
             
-            # Tamanho do ebook (reduzido para evitar erros de token)
+            # Tamanho do ebook
             ebook_pages = st.slider(
                 "📄 Número de Páginas",
                 min_value=10,
-                max_value=100,  # Reduzido de 200 para 100
-                value=30,       # Reduzido de 50 para 30
+                max_value=100,
+                value=30,
                 step=5,
                 help="Tamanho aproximado do ebook"
             )
@@ -376,7 +368,7 @@ def create_sidebar():
             )
             
             # Estimativa de palavras
-            estimated_words = ebook_pages * 300  # Reduzido de 400 para 300 palavras por página
+            estimated_words = ebook_pages * 300
             st.info(f"📊 Estimativa: ~{estimated_words:,} palavras em {num_chapters} capítulos")
             
             # Idioma
@@ -386,13 +378,14 @@ def create_sidebar():
                 index=0
             )
         
-        # Opções de formato
+        # Opções de formato - APENAS EPUB E MARKDOWN
         with st.expander("💾 Formato de Saída"):
             output_format = st.radio(
                 "Escolha o formato:",
-                ["📄 PDF", "📝 Markdown", "🌐 HTML", "📊 EPUB"],
+                ["📚 EPUB", "📝 Markdown"],
                 index=1,  # Padrão para Markdown
-                horizontal=False
+                horizontal=False,
+                help="EPUB para leitores de ebooks, Markdown para edição"
             )
             
             include_images = st.checkbox(
@@ -506,6 +499,184 @@ def create_main_form():
         "key_points": key_points,
         "submit": submit_button
     }
+
+def generate_epub_structure(ebook_content, title, author="EBook Generator Pro"):
+    """
+    Gera a estrutura EPUB básica
+    """
+    # Dividir o conteúdo em capítulos
+    chapters = []
+    current_chapter = ""
+    chapter_title = ""
+    
+    lines = ebook_content.split('\n')
+    for line in lines:
+        if line.startswith('# ') and 'Capítulo' in line:
+            if current_chapter:
+                chapters.append({
+                    'title': chapter_title,
+                    'content': current_chapter
+                })
+            chapter_title = line.replace('# ', '').strip()
+            current_chapter = line + '\n'
+        else:
+            current_chapter += line + '\n'
+    
+    # Adicionar último capítulo
+    if current_chapter:
+        chapters.append({
+            'title': chapter_title,
+            'content': current_chapter
+        })
+    
+    # Se não houver capítulos identificados, criar um único capítulo
+    if not chapters:
+        chapters.append({
+            'title': title,
+            'content': ebook_content
+        })
+    
+    # Criar estrutura EPUB simplificada
+    epub_files = {}
+    
+    # META-INF/container.xml
+    epub_files['META-INF/container.xml'] = '''<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+    <rootfiles>
+        <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+    </rootfiles>
+</container>'''
+    
+    # mimetype
+    epub_files['mimetype'] = 'application/epub+zip'
+    
+    # OEBPS/content.opf
+    manifest_items = []
+    spine_items = []
+    
+    for i, chapter in enumerate(chapters):
+        chapter_id = f"chapter{i+1}"
+        manifest_items.append(f'<item id="{chapter_id}" href="{chapter_id}.xhtml" media-type="application/xhtml+xml"/>')
+        spine_items.append(f'<itemref idref="{chapter_id}"/>')
+    
+    content_opf = f'''<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="uid">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:identifier id="uid">{title.replace(' ', '_').lower()}</dc:identifier>
+        <dc:title>{title}</dc:title>
+        <dc:creator>{author}</dc:creator>
+        <dc:language>pt-BR</dc:language>
+        <dc:date>{datetime.now().strftime('%Y-%m-%d')}</dc:date>
+        <meta property="dcterms:modified">{datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')}</meta>
+    </metadata>
+    <manifest>
+        <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+        <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+        {''.join(manifest_items)}
+    </manifest>
+    <spine toc="ncx">
+        {''.join(spine_items)}
+    </spine>
+</package>'''
+    
+    epub_files['OEBPS/content.opf'] = content_opf
+    
+    # OEBPS/toc.ncx
+    nav_points = []
+    for i, chapter in enumerate(chapters):
+        nav_points.append(f'''
+        <navPoint id="navpoint-{i+1}" playOrder="{i+1}">
+            <navLabel><text>{chapter['title']}</text></navLabel>
+            <content src="chapter{i+1}.xhtml"/>
+        </navPoint>''')
+    
+    toc_ncx = f'''<?xml version="1.0" encoding="UTF-8"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+    <head>
+        <meta name="dtb:uid" content="{title.replace(' ', '_').lower()}"/>
+        <meta name="dtb:depth" content="1"/>
+        <meta name="dtb:totalPageCount" content="0"/>
+        <meta name="dtb:maxPageNumber" content="0"/>
+    </head>
+    <docTitle><text>{title}</text></docTitle>
+    <navMap>{''.join(nav_points)}
+    </navMap>
+</ncx>'''
+    
+    epub_files['OEBPS/toc.ncx'] = toc_ncx
+    
+    # OEBPS/nav.xhtml
+    nav_list = []
+    for i, chapter in enumerate(chapters):
+        nav_list.append(f'<li><a href="chapter{i+1}.xhtml">{chapter["title"]}</a></li>')
+    
+    nav_xhtml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+    <title>Índice</title>
+</head>
+<body>
+    <nav epub:type="toc">
+        <h1>Índice</h1>
+        <ol>{''.join(nav_list)}</ol>
+    </nav>
+</body>
+</html>'''
+    
+    epub_files['OEBPS/nav.xhtml'] = nav_xhtml
+    
+    # Capítulos XHTML
+    for i, chapter in enumerate(chapters):
+        # Converter Markdown para HTML básico
+        content_html = chapter['content']
+        content_html = content_html.replace('# ', '<h1>').replace('\n# ', '</h1>\n<h1>')
+        content_html = content_html.replace('## ', '<h2>').replace('\n## ', '</h2>\n<h2>')
+        content_html = content_html.replace('### ', '<h3>').replace('\n### ', '</h3>\n<h3>')
+        content_html = content_html.replace('\n\n', '</p>\n<p>')
+        content_html = f'<p>{content_html}</p>'
+        content_html = content_html.replace('<p><h', '<h').replace('</h1></p>', '</h1>')
+        content_html = content_html.replace('</h2></p>', '</h2>').replace('</h3></p>', '</h3>')
+        content_html = content_html.replace('<p></p>', '')
+        
+        chapter_xhtml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>{chapter['title']}</title>
+    <style>
+        body {{ font-family: serif; line-height: 1.6; margin: 2em; }}
+        h1, h2, h3 {{ color: #333; margin-top: 2em; }}
+        h1 {{ border-bottom: 2px solid #667eea; padding-bottom: 0.5em; }}
+        p {{ text-align: justify; margin: 1em 0; }}
+    </style>
+</head>
+<body>
+    {content_html}
+</body>
+</html>'''
+        
+        epub_files[f'OEBPS/chapter{i+1}.xhtml'] = chapter_xhtml
+    
+    return epub_files
+
+def create_epub_file(epub_files):
+    """
+    Cria o arquivo EPUB como um zip em memória
+    """
+    epub_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(epub_buffer, 'w', zipfile.ZIP_DEFLATED) as epub_zip:
+        # Adicionar mimetype primeiro (sem compressão)
+        epub_zip.writestr('mimetype', epub_files['mimetype'], compress_type=zipfile.ZIP_STORED)
+        
+        # Adicionar outros arquivos
+        for filepath, content in epub_files.items():
+            if filepath != 'mimetype':
+                epub_zip.writestr(filepath, content)
+    
+    epub_buffer.seek(0)
+    return epub_buffer.getvalue()
 
 def generate_optimized_ebook(llm, topic, config, form_data):
     """
@@ -864,75 +1035,58 @@ def display_results(ebook_content, config, form_data):
         with col1:
             # Preparar arquivo para download
             try:
-                filename = f"ebook_{form_data['topic'][:30].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}"
-                file_extension = config["format"].lower().split()[1]
+                filename = f"ebook_{form_data['topic'][:30].replace(' ', '_').replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}"
                 
-                # Diferentes tipos de arquivo
-                if file_extension == "markdown":
-                    file_data = ebook_content.encode('utf-8')
-                    mime_type = "text/markdown"
-                elif file_extension == "html":
-                    html_content = f"""
-                    <!DOCTYPE html>
-                    <html lang="pt-BR">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>{form_data['topic']}</title>
-                        <style>
-                            body {{ font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; background: #f8f9fa; }}
-                            h1, h2, h3 {{ color: #333; }}
-                            h1 {{ border-bottom: 3px solid #667eea; padding-bottom: 10px; }}
-                            h2 {{ border-bottom: 1px solid #ddd; padding-bottom: 5px; color: #667eea; }}
-                            h3 {{ color: #764ba2; }}
-                            .highlight {{ background: #f0f8ff; padding: 15px; border-left: 4px solid #667eea; margin: 20px 0; }}
-                            code {{ background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }}
-                            blockquote {{ background: #f9f9f9; border-left: 4px solid #ddd; margin: 0; padding: 10px 20px; }}
-                            .content {{ background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-                        </style>
-                    </head>
-                    <body>
-                        <div class="content">
-                            {ebook_content.replace('# ', '<h1>').replace('## ', '<h2>').replace('### ', '<h3>').replace('\n', '<br>')}
-                        </div>
-                    </body>
-                    </html>
-                    """
-                    file_data = html_content.encode('utf-8')
-                    mime_type = "text/html"
-                else:
-                    file_data = ebook_content.encode('utf-8')
-                    mime_type = "text/plain"
-                
-                st.download_button(
-                    label=f"📥 Baixar Ebook ({config['format']})",
-                    data=file_data,
-                    file_name=f"{filename}.{file_extension.replace('pdf', 'txt')}",  # PDF não suportado, usar TXT
-                    mime=mime_type,
-                    use_container_width=True
-                )
-                
-                st.success(f"✅ Pronto para download!")
+                # Download baseado no formato selecionado
+                if config["format"] == "📚 EPUB":
+                    # Gerar EPUB
+                    st.info("📚 Gerando arquivo EPUB...")
+                    epub_files = generate_epub_structure(ebook_content, form_data['topic'])
+                    epub_data = create_epub_file(epub_files)
+                    
+                    st.download_button(
+                        label="📚 Baixar Ebook (EPUB)",
+                        data=epub_data,
+                        file_name=f"{filename}.epub",
+                        mime="application/epub+zip",
+                        use_container_width=True
+                    )
+                    st.success("✅ Arquivo EPUB pronto para download!")
+                    
+                else:  # Markdown
+                    # Gerar Markdown
+                    st.download_button(
+                        label="📝 Baixar Ebook (Markdown)",
+                        data=ebook_content.encode('utf-8'),
+                        file_name=f"{filename}.md",
+                        mime="text/markdown",
+                        use_container_width=True
+                    )
+                    st.success("✅ Arquivo Markdown pronto para download!")
                 
             except Exception as e:
                 st.error(f"❌ Erro ao preparar download: {str(e)}")
                 
                 # Fallback: oferecer download direto do texto
                 st.download_button(
-                    label="📝 Baixar como Texto",
+                    label="📝 Baixar como Texto (Fallback)",
                     data=ebook_content.encode('utf-8'),
-                    file_name=f"ebook_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                    file_name=f"{filename}.txt",
                     mime="text/plain",
                     use_container_width=True
                 )
         
         with col2:
-            st.info("""
-            **📋 Formatos Disponíveis:**
+            st.info(f"""
+            **📋 Formato Selecionado:**
             
-            • **Markdown**: Editável e flexível
-            • **HTML**: Para web e navegadores
-            • **Texto**: Simples e universal
+            • **{config['format']}**
+            
+            {"**📚 EPUB:**" if "EPUB" in config['format'] else "**📝 Markdown:**"}
+            {"✅ Compatível com leitores de ebook" if "EPUB" in config['format'] else "✅ Editável e flexível"}
+            {"✅ Estrutura de capítulos" if "EPUB" in config['format'] else "✅ Formatação universal"}
+            {"✅ Metadados inclusos" if "EPUB" in config['format'] else "✅ Suporte completo"}
+            {"✅ Índice navegável" if "EPUB" in config['format'] else "✅ Fácil conversão"}
             
             📊 **Qualidade:**
             ✅ Estrutura profissional
@@ -1154,16 +1308,16 @@ def main():
                 <p style="color: #8b92a5;">Introdução, capítulos bem organizados, conclusão e recursos extras.</p>
             </div>
             <div class="feature-card">
+                <h4>📚 Formato EPUB</h4>
+                <p style="color: #8b92a5;">Ebooks compatíveis com Kindle, Apple Books e outros leitores.</p>
+            </div>
+            <div class="feature-card">
+                <h4>📝 Formato Markdown</h4>
+                <p style="color: #8b92a5;">Fácil edição e conversão para outros formatos.</p>
+            </div>
+            <div class="feature-card">
                 <h4>🖼️ Sugestões Visuais</h4>
                 <p style="color: #8b92a5;">Descrições de imagens e elementos visuais para enriquecer o conteúdo.</p>
-            </div>
-            <div class="feature-card">
-                <h4>📚 Exercícios Práticos</h4>
-                <p style="color: #8b92a5;">Atividades e reflexões para aumentar o engajamento dos leitores.</p>
-            </div>
-            <div class="feature-card">
-                <h4>📄 Múltiplos Formatos</h4>
-                <p style="color: #8b92a5;">Download em Markdown, HTML e texto para máxima compatibilidade.</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1171,22 +1325,22 @@ def main():
         # Seção de melhorias
         st.markdown("""
         <div class="glass-card fade-in">
-            <h3 style="color: #667eea; margin-bottom: 20px;">⚡ Melhorias v2.1</h3>
+            <h3 style="color: #667eea; margin-bottom: 20px;">⚡ Melhorias v3.0</h3>
             <div class="feature-card">
-                <h4>🔧 Correção de Tokens</h4>
-                <p style="color: #8b92a5;">Sistema completamente reescrito para evitar erros de limite de tokens.</p>
+                <h4>📚 Suporte EPUB Nativo</h4>
+                <p style="color: #8b92a5;">Geração de arquivos EPUB profissionais com estrutura completa.</p>
             </div>
             <div class="feature-card">
-                <h4>📊 Controle Inteligente</h4>
-                <p style="color: #8b92a5;">Geração por partes com controle automático de tamanho e qualidade.</p>
+                <h4>📝 Markdown Otimizado</h4>
+                <p style="color: #8b92a5;">Formatação perfeita para conversão e edição posterior.</p>
             </div>
             <div class="feature-card">
-                <h4>🚀 Performance</h4>
-                <p style="color: #8b92a5;">Mais rápido e estável, com recuperação automática de erros.</p>
+                <h4>🔧 Dois Formatos Premium</h4>
+                <p style="color: #8b92a5;">Foco nos formatos mais utilizados e versáteis do mercado.</p>
             </div>
             <div class="feature-card">
-                <h4>💡 Feedback Melhorado</h4>
-                <p style="color: #8b92a5;">Mensagens de erro mais claras com sugestões práticas de solução.</p>
+                <h4>💡 Interface Simplificada</h4>
+                <p style="color: #8b92a5;">Menos opções, mais qualidade e facilidade de uso.</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1200,10 +1354,10 @@ def main():
                     ✅ Sistema Operacional
                 </div>
                 <div style="color: #8b92a5; font-size: 0.9em; margin: 10px 0;">
-                    Última atualização: 30/07/2024
+                    Última atualização: 31/07/2024
                 </div>
                 <div style="color: #8b92a5; font-size: 0.8em; margin: 10px 0;">
-                    Versão: 2.1 - Otimizada para tokens
+                    Versão: 3.0 - EPUB + Markdown
                 </div>
             </div>
         </div>
@@ -1214,10 +1368,10 @@ def main():
     st.markdown("""
     <div style="text-align: center; padding: 20px 0; color: #8b92a5;">
         <p>📚 <strong>EBook Generator Pro</strong> - Powered by OpenAI</p>
-        <p style="font-size: 0.8em;">Versão 2.1 - Otimizada | © 2024 | Feito com ❤️ para criadores</p>
-        <p style="font-size: 0.7em;">🔧 Agora com correção completa de erros de token!</p>
+        <p style="font-size: 0.8em;">Versão 3.0 - EPUB & Markdown | © 2024 | Feito com ❤️ para criadores</p>
+        <p style="font-size: 0.7em;">📚 Agora com suporte nativo para EPUB profissional!</p>
         <p style="font-size: 0.6em; margin-top: 10px;">
-            💡 Dica: Comece com ebooks de 10-30 páginas para melhores resultados
+            💡 Dica: Use EPUB para leitores digitais e Markdown para edição
         </p>
     </div>
     """, unsafe_allow_html=True)
