@@ -1,44 +1,44 @@
 # 📚 Auto‑Ebook Generator
 
-Gerador automático de eBooks com **Streamlit** + **IA** (OpenAI), pronto para criar livros digitais a partir de um prompt em linguagem natural.
+Automatic eBook generator using **Streamlit** + **AI** (OpenAI), ready to create digital books from a natural language prompt.
 
-Crie eBooks completos com capítulos, seções, conteúdo coeso e capa ilustrativa. Exporte em formatos como **EPUB** e **PDF** para leitura em Kindle e outros dispositivos.
-
----
-
-## 🚀 Funcionalidades
-
-- ✅ Interface web interativa com [Streamlit](https://streamlit.io/)
-- ✅ Escrita automatizada de livros com OpenAI GPT (ex: GPT-3.5, GPT-4)
-- ✅ Geração de estrutura lógica (outline): capítulos, seções e parágrafos
-- ✅ Exportação para EPUB com templates personalizáveis
-- ✅ Criação opcional de capa por IA
-- ✅ Estilo de escrita personalizável (profissional, básico, etc.)
+Create complete eBooks with chapters, sections, cohesive content, and an illustrative cover. Export to formats like **EPUB** and **PDF** for reading on Kindle and other devices.
 
 ---
 
-## 🧪 Demonstração
+## 🚀 Features
 
-Inicie localmente com:
+* ✅ Interactive web interface with [Streamlit](https://streamlit.io/)
+* ✅ Automated book writing with OpenAI GPT (e.g., GPT-3.5, GPT-4)
+* ✅ Logical structure generation: chapters, sections, and paragraphs
+* ✅ EPUB export with customizable templates
+* ✅ Optional AI-generated cover
+* ✅ Customizable writing style (professional, basic, etc.)
+
+---
+
+## 🧪 Demo
+
+Run locally with:
 
 ```bash
 streamlit run app.py
-````
+```
 
-Acesse via navegador: [http://localhost:8501](http://localhost:8501)
+Access in your browser: [http://localhost:8501](http://localhost:8501)
 
 ---
 
-## 🛠️ Instalação
+## 🛠️ Installation
 
-1. Clone o repositório:
+1. Clone the repository:
 
    ```bash
    git clone https://github.com/Filip3Owl/auto-ebook-generator.git
    cd auto-ebook-generator
    ```
 
-2. Crie e ative o ambiente virtual:
+2. Create and activate the virtual environment:
 
    ```bash
    python -m venv .venv
@@ -46,7 +46,7 @@ Acesse via navegador: [http://localhost:8501](http://localhost:8501)
    .venv\Scripts\activate       # Windows
    ```
 
-3. Instale as dependências:
+3. Install the dependencies:
 
    ```bash
    pip install -r requirements.txt
@@ -54,111 +54,106 @@ Acesse via navegador: [http://localhost:8501](http://localhost:8501)
 
 ---
 
-## ⚙️ Configuração
+## ⚙️ Configuration
 
-Crie um arquivo `.env` na raiz com sua chave da OpenAI:
+Create a `.env` file in the root folder with your OpenAI key:
 
 ```env
-OPENAI_API_KEY=sua-chave-aqui
+OPENAI_API_KEY=your-key-here
 ```
 
-Você pode configurar o modelo (ex: `gpt-4`, `gpt-3.5-turbo`) no arquivo `utils/config.py`.
+You can configure the model (e.g., `gpt-4`, `gpt-3.5-turbo`) in the `utils/config.py` file.
 
 ---
 
-## 🧠 Uso
+## 🧠 Usage
 
-1. Abra o app com `streamlit run app.py`
-2. Digite um título e um prompt (tema do livro)
-3. O sistema:
+1. Launch the app with `streamlit run app.py`
+2. Enter a title and a prompt (book theme)
+3. The system will:
 
-   * Gera o outline (capítulos/seções)
-   * Escreve automaticamente o conteúdo
-   * Cria capa com IA (opcional)
-   * Exporta o eBook no formato desejado
+   * Generate the outline (chapters/sections)
+   * Automatically write the content
+   * Optionally create an AI-generated cover
+   * Export the eBook in the selected format
 
 ---
 
-## 📁 Estrutura do Projeto
+## 📁 Project Structure
 
 ```
 auto-ebook-generator/
 │
-├── app.py                 # Interface Streamlit
-├── .env                  # Configurações (API Key)
-├── requirements.txt      # Dependências do projeto
+├── app.py                 # Streamlit interface
+├── .env                  # Configurations (API Key)
+├── requirements.txt      # Project dependencies
 │
-├── agents/               # Lógica de escrita automática
-│   ├── writer.py         # Escrita do conteúdo
-│   └── outline.py        # Geração da estrutura (capítulos/seções)
+├── agents/               # Automated writing logic
+│   ├── writer.py         # Content writing
+│   └── outline.py        # Structure generation (chapters/sections)
 │
-├── core/                 # Prompt templates e regras de negócio
+├── core/                 # Prompt templates and business rules
 │   └── prompts.py
 │
-├── utils/                # Funções auxiliares e configuração
-│   ├── config.py         # Configurações gerais do sistema
-│   └── file_io.py        # Manipulação de arquivos de entrada/saída
+├── utils/                # Helper functions and config
+│   ├── config.py         # General system configurations
+│   └── file_io.py        # File input/output handling
 │
-├── templates/            # Templates de layout para EPUB
-│   ├── basic/            # Estilo simples
-│   └── professional/     # Estilo mais refinado
+├── templates/            # EPUB layout templates
+│   ├── basic/            # Simple style
+│   └── professional/     # More refined style
 │
-├── output/               # eBooks e capas geradas
+├── output/               # Generated eBooks and covers
 │   └── ebook_*.epub/pdf
 │
-├── assets/               # Estilos, imagens e CSS
+├── assets/               # Styles, images, and CSS
 │   ├── css/
 │   └── images/
 ```
 
 ---
 
-## 📦 Tecnologias Utilizadas
+## 📦 Technologies Used
 
 * [Python 3.10+](https://www.python.org/)
 * [Streamlit](https://streamlit.io/)
 * [OpenAI API](https://platform.openai.com/)
 * [Ebooklib](https://github.com/aerkalov/ebooklib)
 * [dotenv](https://pypi.org/project/python-dotenv/)
-* [Pillow](https://python-pillow.org/) (para imagens de capa)
+* [Pillow](https://python-pillow.org/) (for cover images)
 
 ---
 
-## 📤 Exportação
+## 📤 Export
 
-* Os livros gerados ficam na pasta `output/`
-* O sistema exporta em formato `.epub`
-* O suporte a `.pdf` pode ser adicionado com bibliotecas como `reportlab` ou `PyMuPDF`
-
----
-
-## 🤝 Contribuições
-
-Contribuições são bem-vindas!
-
-1. Faça um fork do repositório
-2. Crie uma branch (`git checkout -b feature/sua-feature`)
-3. Commit suas mudanças (`git commit -m 'Minha nova feature'`)
-4. Push para o repositório remoto
-5. Abra um Pull Request 🚀
+* Generated books are saved in the `output/` folder
+* The system exports in `.epub` format
+* PDF support can be added using libraries like `reportlab` or `PyMuPDF`
 
 ---
 
-## 📜 Licença
+## 🤝 Contributions
 
-Distribuído sob a licença **MIT**. Veja `LICENSE` para mais informações.
+Contributions are welcome!
+
+1. Fork the repository
+2. Create a branch (`git checkout -b feature/your-feature`)
+3. Commit your changes (`git commit -m 'My new feature'`)
+4. Push to the remote repository
+5. Open a Pull Request 🚀
 
 ---
 
-## 👨‍💻 Autor
+## 📜 License
+
+Distributed under the **MIT** license. See `LICENSE` for more information.
+
+---
+
+## 👨‍💻 Author
 
 **Filipe Rangel**
 🔗 [LinkedIn](https://www.linkedin.com/in/filiperangelambrosio/)
-📂 [Repositório GitHub](https://github.com/Filip3Owl/auto-ebook-generator)
+📂 [GitHub Repository](https://github.com/Filip3Owl/auto-ebook-generator)
 
 ---
-
-```
-
-Se quiser, posso te gerar um print do app em funcionamento para usar no README (via `st.screenshot()` ou `printscreen` manual) e/ou ajudar com deploy no **Streamlit Cloud**, **HuggingFace Spaces**, ou **Render**. Deseja isso?
-```
